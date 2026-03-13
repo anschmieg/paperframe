@@ -64,53 +64,66 @@ final class WorkspaceAdapterStubTests: XCTestCase {
 
 /// Tests for the real `PermissionsService` backed by macOS public APIs.
 ///
-/// NOTE: These tests run in a sandboxed XCTest process that has NOT been granted
-/// Accessibility or Input Monitoring permission. The assertions reflect the
-/// expected conservative "not trusted" defaults in that environment.
+/// These tests validate the structural contract of `PermissionsService` without
+/// assuming any specific machine permission state. They assert that:
+/// - the service returns valid `PermissionStatus` values
+/// - the mapping rules (`AXIsProcessTrustedWithOptions` → non-.notDetermined, etc.) hold
+/// - convenience accessors are consistent with `currentState`
+/// - refresh and request methods do not crash
 final class PermissionsServiceTests: XCTestCase {
 
     func testInitDoesNotCrash() {
         _ = PermissionsService()
     }
 
-    /// In the test environment Accessibility is never pre-granted, so
-    /// `accessibilityGranted` should be `false` and `isReducedMode` should be `true`.
-    func testAccessibilityNotGrantedInTestEnvironment() {
-        let svc = PermissionsService()
-        // The test runner is not in the Accessibility list, so this must be false.
-        XCTAssertFalse(svc.accessibilityGranted)
-        XCTAssertTrue(svc.currentState.isReducedMode)
-    }
-
-    /// Accessibility status must be a definitive answer (granted or denied), not notDetermined.
+    /// Accessibility status must always be `.granted` or `.denied` — never `.notDetermined`.
     ///
-    /// `AXIsProcessTrustedWithOptions` always returns a Boolean — there is no
-    /// "not determined" state for Accessibility trust. The service maps `false` to `.denied`.
+    /// `AXIsProcessTrustedWithOptions` always returns a Boolean, so the service always
+    /// resolves to one of the two definitive states.
     func testAccessibilityStatusIsNeverNotDetermined() {
         let svc = PermissionsService()
         XCTAssertNotEqual(svc.currentState.accessibility, .notDetermined,
             "Accessibility status should be .granted or .denied, never .notDetermined")
     }
 
-    /// Input Monitoring uses a conservative mapping: non-granted → `.notDetermined`.
-    func testInputMonitoringIsConservativelyNotDetermined() {
+    /// The `accessibilityGranted` convenience accessor must be consistent with `currentState`.
+    func testAccessibilityGrantedMatchesCurrentState() {
         let svc = PermissionsService()
-        // In the test environment IM is not granted; service maps this conservatively.
-        let im = svc.currentState.inputMonitoring
-        XCTAssertTrue(im == .notDetermined || im == .granted,
-            "Input Monitoring should be .notDetermined (conservative) or .granted, never .denied from probe alone")
+        XCTAssertEqual(svc.accessibilityGranted, svc.currentState.accessibility == .granted)
     }
 
-    func testRefreshDoesNotCrash() {
+    /// `isReducedMode` must be the inverse of Accessibility being granted.
+    func testReducedModeIsConsistentWithAccessibilityState() {
+        let svc = PermissionsService()
+        XCTAssertEqual(svc.currentState.isReducedMode, !svc.accessibilityGranted)
+    }
+
+    /// Input Monitoring probe uses a conservative mapping: the probe result is
+    /// never mapped to `.denied` — only `.granted` or `.notDetermined`.
+    func testInputMonitoringIsNeverDeniedFromProbeAlone() {
+        let svc = PermissionsService()
+        let im = svc.currentState.inputMonitoring
+        XCTAssertNotEqual(im, .denied,
+            "Input Monitoring should be .granted or .notDetermined (conservative); .denied is never returned by the probe alone")
+    }
+
+    /// The `inputMonitoringGranted` convenience accessor must be consistent with `currentState`.
+    func testInputMonitoringGrantedMatchesCurrentState() {
+        let svc = PermissionsService()
+        XCTAssertEqual(svc.inputMonitoringGranted, svc.currentState.inputMonitoring == .granted)
+    }
+
+    func testRefreshReturnsValidState() {
         let svc = PermissionsService()
         svc.refresh()
-        // State is still valid after a second probe.
-        let _ = svc.currentState
+        // After a refresh the structural contract still holds.
+        XCTAssertNotEqual(svc.currentState.accessibility, .notDetermined)
+        XCTAssertNotEqual(svc.currentState.inputMonitoring, .denied)
     }
 
     func testRequestAccessibilityPermissionDoesNotCrash() {
         let svc = PermissionsService()
-        // In a test environment this should not show a dialog, but must not crash.
+        // Must not crash; dialog behaviour is system-controlled.
         svc.requestAccessibilityPermission()
     }
 
@@ -121,7 +134,7 @@ final class PermissionsServiceTests: XCTestCase {
 
     func testConformanceToProtocol() {
         let svc: any PermissionsServiceProtocol = PermissionsService()
-        // Protocol accessors must be available.
+        // All protocol accessors must be reachable.
         let _ = svc.currentState
         let _ = svc.accessibilityGranted
         let _ = svc.inputMonitoringGranted
