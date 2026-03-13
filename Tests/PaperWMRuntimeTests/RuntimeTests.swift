@@ -8,16 +8,47 @@ import PaperWMCore
 /// Behavioral tests will be added when real implementations land.
 final class PermissionsServiceStubTests: XCTestCase {
 
+    func testDefaultStateIsNotDetermined() {
+        let svc = PermissionsServiceStub()
+        XCTAssertEqual(svc.currentState.accessibility, .notDetermined)
+        XCTAssertEqual(svc.currentState.inputMonitoring, .notDetermined)
+    }
+
     func testDefaultsAreNotGranted() {
         let svc = PermissionsServiceStub()
         XCTAssertFalse(svc.accessibilityGranted)
         XCTAssertFalse(svc.inputMonitoringGranted)
     }
 
+    func testGrantedStateReflectsInConvenienceAccessors() {
+        let grantedState = PermissionsState(accessibility: .granted, inputMonitoring: .granted)
+        let svc = PermissionsServiceStub(initialState: grantedState)
+        XCTAssertTrue(svc.accessibilityGranted)
+        XCTAssertTrue(svc.inputMonitoringGranted)
+    }
+
+    func testReducedModeWhenAccessibilityNotGranted() {
+        let svc = PermissionsServiceStub()
+        XCTAssertTrue(svc.currentState.isReducedMode)
+    }
+
+    func testNotReducedModeWhenAccessibilityGranted() {
+        let state = PermissionsState(accessibility: .granted, inputMonitoring: .notDetermined)
+        let svc = PermissionsServiceStub(initialState: state)
+        XCTAssertFalse(svc.currentState.isReducedMode)
+    }
+
     func testRequestMethodsDoNotCrash() {
         let svc = PermissionsServiceStub()
         svc.requestAccessibilityPermission()
         svc.requestInputMonitoringPermission()
+    }
+
+    func testRefreshDoesNotCrash() {
+        let svc = PermissionsServiceStub()
+        svc.refresh()
+        // Stub does not update state; it remains notDetermined.
+        XCTAssertEqual(svc.currentState.accessibility, .notDetermined)
     }
 }
 
@@ -95,9 +126,9 @@ final class DiagnosticsServiceStubTests: XCTestCase {
         svc.record(event: .displayTopologyChanged)
         svc.record(event: .activeSpaceChanged)
 
+        let grantedState = PermissionsState(accessibility: .granted, inputMonitoring: .notDetermined)
         let report = svc.currentReport(
-            accessibilityGranted: true,
-            inputMonitoringGranted: false,
+            permissionsState: grantedState,
             managedWindowCount: 3
         )
 
@@ -113,8 +144,7 @@ final class DiagnosticsServiceStubTests: XCTestCase {
             svc.record(event: .displayTopologyChanged)
         }
         let report = svc.currentReport(
-            accessibilityGranted: false,
-            inputMonitoringGranted: false,
+            permissionsState: .notDetermined,
             managedWindowCount: 0
         )
         XCTAssertEqual(report.recentEvents.count, 3)
@@ -125,11 +155,18 @@ final class DiagnosticsServiceStubTests: XCTestCase {
         let windowID = ManagedWindowID("w-fail")
         svc.record(failure: .failed(windowID: windowID, reason: "AX timeout"))
         let report = svc.currentReport(
-            accessibilityGranted: false,
-            inputMonitoringGranted: false,
+            permissionsState: .notDetermined,
             managedWindowCount: 0
         )
         XCTAssertEqual(report.recentFailures.count, 1)
+    }
+
+    func testPermissionsStateInReport() {
+        let svc = DiagnosticsServiceStub()
+        let state = PermissionsState(accessibility: .denied, inputMonitoring: .notDetermined)
+        let report = svc.currentReport(permissionsState: state, managedWindowCount: 0)
+        XCTAssertEqual(report.permissionsState.accessibility, .denied)
+        XCTAssertTrue(report.permissionsState.isReducedMode)
     }
 }
 

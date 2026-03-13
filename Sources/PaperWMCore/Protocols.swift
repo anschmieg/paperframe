@@ -7,10 +7,20 @@ import Foundation
 /// Must be the single authority on trust checks throughout the runtime.
 /// All other services should query this before performing AX operations.
 public protocol PermissionsServiceProtocol: AnyObject {
-    /// Whether macOS Accessibility permission has been granted.
+    /// The full structured permission state for all tracked permissions.
+    ///
+    /// Consumers should read this once and pass it down rather than re-probing repeatedly.
+    var currentState: PermissionsState { get }
+
+    /// Convenience: `true` when Accessibility permission has been granted.
     var accessibilityGranted: Bool { get }
-    /// Whether macOS Input Monitoring permission has been granted.
+    /// Convenience: `true` when Input Monitoring permission has been granted.
     var inputMonitoringGranted: Bool { get }
+
+    /// Re-probes all system permissions and updates `currentState`.
+    ///
+    /// Call this on app launch and whenever the user returns from System Settings.
+    func refresh()
 
     /// Triggers the system prompt for Accessibility permission if not already granted.
     func requestAccessibilityPermission()
@@ -129,8 +139,7 @@ public protocol DiagnosticsServiceProtocol: AnyObject {
     func record(failure: PlacementResult)
     /// Returns the current diagnostics snapshot.
     func currentReport(
-        accessibilityGranted: Bool,
-        inputMonitoringGranted: Bool,
+        permissionsState: PermissionsState,
         managedWindowCount: Int
     ) -> DiagnosticsReport
 }

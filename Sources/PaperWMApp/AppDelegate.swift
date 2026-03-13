@@ -68,8 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showDiagnostics() {
         // TODO: Open the diagnostics inspector panel.
         let report = diagnostics.currentReport(
-            accessibilityGranted: permissions.accessibilityGranted,
-            inputMonitoringGranted: permissions.inputMonitoringGranted,
+            permissionsState: permissions.currentState,
             managedWindowCount: inventory.snapshots.count
         )
         let msg = """
@@ -77,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Input Monitoring: \(report.inputMonitoringGranted ? "✓" : "✗")
         Managed windows: \(report.managedWindowCount)
         Recent events: \(report.recentEvents.count)
+        Reduced mode: \(report.permissionsState.isReducedMode ? "yes" : "no")
         """
         let alert = NSAlert()
         alert.messageText = "PaperWM Diagnostics"

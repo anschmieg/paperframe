@@ -167,4 +167,51 @@ final class DiagnosticsTypesTests: XCTestCase {
         XCTAssertFalse(report.inputMonitoringGranted)
         XCTAssertTrue(report.recentFailures.isEmpty)
     }
+
+    func testDiagnosticsReportPermissionsState() {
+        let state = PermissionsState(accessibility: .granted, inputMonitoring: .denied)
+        let report = DiagnosticsReport(permissionsState: state)
+        XCTAssertTrue(report.accessibilityGranted)
+        XCTAssertFalse(report.inputMonitoringGranted)
+        XCTAssertEqual(report.permissionsState.accessibility, .granted)
+    }
+}
+
+final class PermissionTypesTests: XCTestCase {
+
+    func testNotDeterminedDefault() {
+        let state = PermissionsState.notDetermined
+        XCTAssertEqual(state.accessibility, .notDetermined)
+        XCTAssertEqual(state.inputMonitoring, .notDetermined)
+    }
+
+    func testReducedModeWhenAccessibilityNotGranted() {
+        let denied = PermissionsState(accessibility: .denied, inputMonitoring: .granted)
+        XCTAssertTrue(denied.isReducedMode)
+
+        let notDetermined = PermissionsState(accessibility: .notDetermined, inputMonitoring: .granted)
+        XCTAssertTrue(notDetermined.isReducedMode)
+    }
+
+    func testNotReducedModeWhenAccessibilityGranted() {
+        let state = PermissionsState(accessibility: .granted, inputMonitoring: .notDetermined)
+        XCTAssertFalse(state.isReducedMode)
+        XCTAssertTrue(state.accessibilityAvailable)
+    }
+
+    func testFullyGrantedRequiresBoth() {
+        let bothGranted = PermissionsState(accessibility: .granted, inputMonitoring: .granted)
+        XCTAssertTrue(bothGranted.isFullyGranted)
+
+        let onlyAX = PermissionsState(accessibility: .granted, inputMonitoring: .denied)
+        XCTAssertFalse(onlyAX.isFullyGranted)
+
+        let neither = PermissionsState.notDetermined
+        XCTAssertFalse(neither.isFullyGranted)
+    }
+
+    func testPermissionStatusHashable() {
+        let statuses: Set<PermissionStatus> = [.granted, .denied, .notDetermined, .granted]
+        XCTAssertEqual(statuses.count, 3)
+    }
 }
