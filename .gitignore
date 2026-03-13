@@ -1,0 +1,14 @@
+# Swift Package Manager build artifacts
+.build/
+
+# Xcode-generated files (if opened in Xcode)
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+xcuserdata/
+
+# SPM resolved dependencies
+.swiftpm/
+
+# macOS metadata
+.DS_Store
