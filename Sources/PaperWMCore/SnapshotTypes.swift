@@ -20,26 +20,41 @@ public struct AppDescriptor: Hashable, Sendable {
 
 // MARK: - Window capabilities
 
-/// Bitmask of operations the window manager can perform on a window.
+/// The set of operations the window manager can perform on a window.
 ///
-/// Populated by capability probing (AX attribute reads) before any write attempt.
-public struct WindowCapabilities: OptionSet, Sendable {
-    public let rawValue: UInt32
+/// Each field is independently probed via AX attribute reads before any write attempt.
+/// Explicit Bool fields are preferred over a bitmask OptionSet here because:
+/// - individual fields are directly readable in the debugger and diagnostic reports
+/// - there is no semantic benefit from set-combination arithmetic on capabilities
+/// - AX probing checks each attribute independently, mirroring this one-field-per-check layout
+public struct WindowCapabilities: Sendable {
+    /// Window position can be set via AX.
+    public var canMove: Bool
+    /// Window size can be set via AX.
+    public var canResize: Bool
+    /// Window can be minimized via AX.
+    public var canMinimize: Bool
+    /// Window can be focused via AX.
+    public var canFocus: Bool
+    /// Window can be closed via AX.
+    public var canClose: Bool
 
-    public init(rawValue: UInt32) {
-        self.rawValue = rawValue
+    public init(
+        canMove: Bool = false,
+        canResize: Bool = false,
+        canMinimize: Bool = false,
+        canFocus: Bool = false,
+        canClose: Bool = false
+    ) {
+        self.canMove = canMove
+        self.canResize = canResize
+        self.canMinimize = canMinimize
+        self.canFocus = canFocus
+        self.canClose = canClose
     }
 
-    /// Window position can be set via AX.
-    public static let canMove     = WindowCapabilities(rawValue: 1 << 0)
-    /// Window size can be set via AX.
-    public static let canResize   = WindowCapabilities(rawValue: 1 << 1)
-    /// Window can be minimized via AX.
-    public static let canMinimize = WindowCapabilities(rawValue: 1 << 2)
-    /// Window can be focused via AX.
-    public static let canFocus    = WindowCapabilities(rawValue: 1 << 3)
-    /// Window can be closed via AX.
-    public static let canClose    = WindowCapabilities(rawValue: 1 << 4)
+    /// All capabilities set to false — the safe default before probing.
+    public static let none = WindowCapabilities()
 }
 
 // MARK: - Window eligibility

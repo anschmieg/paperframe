@@ -30,24 +30,33 @@ final class IdentityTests: XCTestCase {
 
 final class SnapshotTypesTests: XCTestCase {
 
-    func testWindowCapabilitiesOptionSet() {
-        let caps: WindowCapabilities = [.canMove, .canResize]
-        XCTAssertTrue(caps.contains(.canMove))
-        XCTAssertTrue(caps.contains(.canResize))
-        XCTAssertFalse(caps.contains(.canMinimize))
-        XCTAssertFalse(caps.contains(.canFocus))
+    func testWindowCapabilitiesExplicitFields() {
+        let caps = WindowCapabilities(canMove: true, canResize: true)
+        XCTAssertTrue(caps.canMove)
+        XCTAssertTrue(caps.canResize)
+        XCTAssertFalse(caps.canMinimize)
+        XCTAssertFalse(caps.canFocus)
+        XCTAssertFalse(caps.canClose)
     }
 
-    func testWindowCapabilitiesEmpty() {
-        let caps: WindowCapabilities = []
-        XCTAssertFalse(caps.contains(.canMove))
+    func testWindowCapabilitiesNone() {
+        let caps = WindowCapabilities.none
+        XCTAssertFalse(caps.canMove)
+        XCTAssertFalse(caps.canResize)
+        XCTAssertFalse(caps.canMinimize)
+        XCTAssertFalse(caps.canFocus)
+        XCTAssertFalse(caps.canClose)
     }
 
     func testWindowCapabilitiesAll() {
-        let all: WindowCapabilities = [.canMove, .canResize, .canMinimize, .canFocus, .canClose]
-        for cap in [WindowCapabilities.canMove, .canResize, .canMinimize, .canFocus, .canClose] {
-            XCTAssertTrue(all.contains(cap))
-        }
+        let all = WindowCapabilities(
+            canMove: true, canResize: true, canMinimize: true, canFocus: true, canClose: true
+        )
+        XCTAssertTrue(all.canMove)
+        XCTAssertTrue(all.canResize)
+        XCTAssertTrue(all.canMinimize)
+        XCTAssertTrue(all.canFocus)
+        XCTAssertTrue(all.canClose)
     }
 
     func testManagedWindowSnapshotInit() {
@@ -58,7 +67,7 @@ final class SnapshotTypesTests: XCTestCase {
             app: app,
             frameOnDisplay: CGRect(x: 0, y: 0, width: 1280, height: 800),
             displayID: DisplayID(1),
-            capabilities: [.canMove, .canResize],
+            capabilities: WindowCapabilities(canMove: true, canResize: true),
             eligibility: .eligible
         )
         XCTAssertEqual(snapshot.windowID, id)

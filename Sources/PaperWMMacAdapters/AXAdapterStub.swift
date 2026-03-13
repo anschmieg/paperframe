@@ -87,7 +87,7 @@ public final class AXAdapterStub {
     ///       and checking settable attributes via AXUIElementIsAttributeSettable.
     public func probeCapabilities(of windowElement: AXUIElement) -> WindowCapabilities {
         // TODO: Real implementation checks each relevant AX attribute for settability.
-        return []
+        return .none
     }
 
     // MARK: - Focus

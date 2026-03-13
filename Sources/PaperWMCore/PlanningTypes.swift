@@ -68,7 +68,7 @@ public struct PlacementPlan: Sendable {
 public enum PlacementResult: Sendable {
     case success
     case resistedByApp(windowID: ManagedWindowID)
-    case capabilityMissing(windowID: ManagedWindowID, capability: WindowCapabilities)
+    case capabilityMissing(windowID: ManagedWindowID, capability: String)
     case failed(windowID: ManagedWindowID, reason: String)
 }
 

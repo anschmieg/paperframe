@@ -21,11 +21,12 @@ final class AXAdapterStubTests: XCTestCase {
         XCTAssertTrue(windows.isEmpty, "Stub should return empty array")
     }
 
-    func testProbeCapabilitiesReturnsEmpty() {
+    func testProbeCapabilitiesReturnsNone() {
         let axAdapter = AXAdapterStub()
         let systemElement = AXUIElementCreateSystemWide()
         let caps = axAdapter.probeCapabilities(of: systemElement)
-        XCTAssertTrue(caps.isEmpty, "Stub should return empty capabilities")
+        XCTAssertFalse(caps.canMove, "Stub should return all-false capabilities")
+        XCTAssertFalse(caps.canResize, "Stub should return all-false capabilities")
     }
 
     func testApplicationElementReturnsNil() {

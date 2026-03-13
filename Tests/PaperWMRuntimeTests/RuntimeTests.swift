@@ -132,3 +132,16 @@ final class DiagnosticsServiceStubTests: XCTestCase {
         XCTAssertEqual(report.recentFailures.count, 1)
     }
 }
+
+final class PersistenceStoreStubTests: XCTestCase {
+
+    func testLoadDoesNotThrow() {
+        let store = PersistenceStoreStub()
+        XCTAssertNoThrow(try store.load())
+    }
+
+    func testSaveDoesNotThrow() {
+        let store = PersistenceStoreStub()
+        XCTAssertNoThrow(try store.save())
+    }
+}

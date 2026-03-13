@@ -51,6 +51,7 @@ Sources/
 │   ├── WorldStateStub.swift
 │   ├── ProjectionPlannerStub.swift
 │   ├── PlacementTransactionEngineStub.swift
+│   ├── PersistenceStoreStub.swift
 │   └── DiagnosticsServiceStub.swift
 │
 └── PaperWMApp/             # Menu-bar executable shell — wires runtime together
