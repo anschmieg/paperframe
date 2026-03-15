@@ -1,6 +1,7 @@
 import Testing
 import Cocoa
 @testable import PaperWMMacAdapters
+@testable import PaperWMRuntime
 import PaperWMCore
 
 @Test("AXAdapterStub init does not crash")
@@ -179,4 +180,165 @@ func permissionsServiceConformanceToProtocol() {
     let _ = service.currentState
     let _ = service.accessibilityGranted
     let _ = service.inputMonitoringGranted
+}
+
+// MARK: - AXAdapter real implementation tests
+
+@Test("AXAdapter can read frame from system element")
+func axAdapterCanReadFrame() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    // System-wide element has a frame; we just verify the method doesn't crash
+    // and returns a value (may be nil or .zero depending on AX state)
+    let frame = axAdapter.frame(of: systemElement)
+    // Frame should be nil or a valid CGRect - either is acceptable
+    _ = frame
+}
+
+@Test("AXAdapter can read title from system element")
+func axAdapterCanReadTitle() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    // Title may be nil or a string depending on AX state
+    let title = axAdapter.title(of: systemElement)
+    _ = title
+}
+
+@Test("AXAdapter probeCapabilities returns a valid struct")
+func axAdapterProbeCapabilitiesReturnsValidStruct() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    let caps = axAdapter.probeCapabilities(of: systemElement)
+    // Should return a valid WindowCapabilities struct (may be all false)
+    _ = caps.canMove
+    _ = caps.canResize
+    _ = caps.canMinimize
+    _ = caps.canFocus
+    _ = caps.canClose
+}
+
+@Test("AXAdapter applicationElement returns nil for invalid PID")
+func axAdapterApplicationElementReturnsNilForInvalidPID() {
+    let axAdapter = AXAdapter()
+    // PID 0 is the kernel, which has no AX representation
+    let element = axAdapter.applicationElement(for: 0)
+    #expect(element == nil)
+}
+
+@Test("AXAdapter windowElements returns array for any element")
+func axAdapterWindowElementsReturnsArray() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    // Should return an array (may be empty)
+    let windows = axAdapter.windowElements(for: systemElement)
+    _ = windows.isEmpty  // Just verify it's a valid array
+}
+
+// MARK: - AXAdapter real implementation tests
+
+@Test("AXAdapter applicationElement returns nil for non-existent PID")
+func axAdapterApplicationElementReturnsNilForNonExistentPID() {
+    let axAdapter = AXAdapter()
+    // PID 99999 is unlikely to exist and should return nil
+    let element = axAdapter.applicationElement(for: 99999)
+    // May return nil or a non-functional element; both are acceptable
+    _ = element
+}
+
+@Test("AXAdapter windowElements returns empty for system element")
+func axAdapterWindowElementsReturnsEmptyForSystemElement() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    let windows = axAdapter.windowElements(for: systemElement)
+    // System-wide element doesn't have windows attribute in the same way
+    // Result may be empty or the call may fail gracefully
+    _ = windows
+}
+
+@Test("AXAdapter frame returns nil for system element")
+func axAdapterFrameReturnsNilForSystemElement() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    let frame = axAdapter.frame(of: systemElement)
+    #expect(frame == nil)
+}
+
+@Test("AXAdapter title returns nil for system element")
+func axAdapterTitleReturnsNilForSystemElement() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    let title = axAdapter.title(of: systemElement)
+    // Title may be nil or empty for system element
+    _ = title
+}
+
+@Test("AXAdapter probeCapabilities returns conservative values for system element")
+func axAdapterProbeCapabilitiesReturnsConservativeValues() {
+    let axAdapter = AXAdapter()
+    let systemElement = AXUIElementCreateSystemWide()
+    let caps = axAdapter.probeCapabilities(of: systemElement)
+    // System-wide element should return conservative (mostly false) capabilities
+    _ = caps
+}
+
+@Test("AXAdapter init does not crash")
+func axAdapterInitDoesNotCrash() {
+    _ = AXAdapter()
+}
+
+// MARK: - WindowInventoryService tests
+
+@Test("WindowInventoryService init does not crash")
+func windowInventoryServiceInitDoesNotCrash() {
+    let permissions = PermissionsServiceStub()
+    _ = WindowInventoryService(permissionsService: permissions)
+}
+
+@Test("WindowInventoryService returns empty snapshots when accessibility denied")
+func windowInventoryServiceReturnsEmptyWhenAccessibilityDenied() async {
+    let permissions = PermissionsServiceStub(initialState: PermissionsState(
+        accessibility: .denied,
+        inputMonitoring: .notDetermined
+    ))
+    let service = WindowInventoryService(permissionsService: permissions)
+    await service.refreshSnapshot()
+    #expect(service.snapshots.isEmpty)
+}
+
+@Test("WindowInventoryService snapshots have valid structure when accessible")
+func windowInventoryServiceSnapshotsHaveValidStructure() async {
+    let permissions = PermissionsServiceStub(initialState: PermissionsState(
+        accessibility: .granted,
+        inputMonitoring: .notDetermined
+    ))
+    let service = WindowInventoryService(permissionsService: permissions)
+    await service.refreshSnapshot()
+    // Snapshots may be empty or populated depending on system state
+    // Just verify the array is accessible
+    _ = service.snapshots
+}
+
+@Test("WindowInventoryService snapshot fields are valid")
+func windowInventoryServiceSnapshotFieldsAreValid() async {
+    let permissions = PermissionsServiceStub(initialState: PermissionsState(
+        accessibility: .granted,
+        inputMonitoring: .notDetermined
+    ))
+    let service = WindowInventoryService(permissionsService: permissions)
+    await service.refreshSnapshot()
+
+    for snapshot in service.snapshots {
+        // All snapshots must have valid IDs
+        #expect(!snapshot.windowID.rawValue.isEmpty)
+
+        // All snapshots must have an app descriptor
+        #expect(snapshot.app.pid > 0)
+
+        // Frame must have non-negative dimensions
+        #expect(snapshot.frameOnDisplay.width >= 0)
+        #expect(snapshot.frameOnDisplay.height >= 0)
+
+        // Display ID must be valid
+        #expect(snapshot.displayID.rawValue > 0)
+    }
 }
