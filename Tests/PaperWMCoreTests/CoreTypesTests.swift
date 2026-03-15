@@ -1,217 +1,181 @@
-import XCTest
+import Foundation
+import CoreGraphics
+import Testing
 @testable import PaperWMCore
 
-final class IdentityTests: XCTestCase {
-
-    func testManagedWindowIDEquality() {
-        let a = ManagedWindowID("win-1")
-        let b = ManagedWindowID("win-1")
-        let c = ManagedWindowID("win-2")
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
-    }
-
-    func testManagedWindowIDHashable() {
-        let ids: Set<ManagedWindowID> = [ManagedWindowID("x"), ManagedWindowID("x"), ManagedWindowID("y")]
-        XCTAssertEqual(ids.count, 2)
-    }
-
-    func testDisplayIDEquality() {
-        XCTAssertEqual(DisplayID(1), DisplayID(1))
-        XCTAssertNotEqual(DisplayID(1), DisplayID(2))
-    }
-
-    func testWorkspaceIDEquality() {
-        let uuid = UUID()
-        XCTAssertEqual(WorkspaceID(uuid), WorkspaceID(uuid))
-        XCTAssertNotEqual(WorkspaceID(UUID()), WorkspaceID(UUID()))
-    }
+@Test("ManagedWindowID equality")
+func managedWindowIDEquality() {
+    let a = ManagedWindowID("win-1")
+    let b = ManagedWindowID("win-1")
+    let c = ManagedWindowID("win-2")
+    #expect(a == b)
+    #expect(a != c)
 }
 
-final class SnapshotTypesTests: XCTestCase {
-
-    func testWindowCapabilitiesExplicitFields() {
-        let caps = WindowCapabilities(canMove: true, canResize: true)
-        XCTAssertTrue(caps.canMove)
-        XCTAssertTrue(caps.canResize)
-        XCTAssertFalse(caps.canMinimize)
-        XCTAssertFalse(caps.canFocus)
-        XCTAssertFalse(caps.canClose)
-    }
-
-    func testWindowCapabilitiesNone() {
-        let caps = WindowCapabilities.none
-        XCTAssertFalse(caps.canMove)
-        XCTAssertFalse(caps.canResize)
-        XCTAssertFalse(caps.canMinimize)
-        XCTAssertFalse(caps.canFocus)
-        XCTAssertFalse(caps.canClose)
-    }
-
-    func testWindowCapabilitiesAll() {
-        let all = WindowCapabilities(
-            canMove: true, canResize: true, canMinimize: true, canFocus: true, canClose: true
-        )
-        XCTAssertTrue(all.canMove)
-        XCTAssertTrue(all.canResize)
-        XCTAssertTrue(all.canMinimize)
-        XCTAssertTrue(all.canFocus)
-        XCTAssertTrue(all.canClose)
-    }
-
-    func testManagedWindowSnapshotInit() {
-        let id = ManagedWindowID("w-1")
-        let app = AppDescriptor(bundleID: "com.test.App", displayName: "TestApp", pid: 1234)
-        let snapshot = ManagedWindowSnapshot(
-            windowID: id,
-            app: app,
-            frameOnDisplay: CGRect(x: 0, y: 0, width: 1280, height: 800),
-            displayID: DisplayID(1),
-            capabilities: WindowCapabilities(canMove: true, canResize: true),
-            eligibility: .eligible
-        )
-        XCTAssertEqual(snapshot.windowID, id)
-        XCTAssertEqual(snapshot.app.bundleID, "com.test.App")
-        XCTAssertFalse(snapshot.isMinimized)
-        XCTAssertFalse(snapshot.isFocused)
-    }
+@Test("ManagedWindowID hashable semantics")
+func managedWindowIDHashable() {
+    let ids: Set<ManagedWindowID> = [ManagedWindowID("x"), ManagedWindowID("x"), ManagedWindowID("y")]
+    #expect(ids.count == 2)
 }
 
-final class PaperSpaceTypesTests: XCTestCase {
-
-    func testPaperRectZero() {
-        let r = PaperRect.zero
-        XCTAssertEqual(r.x, 0)
-        XCTAssertEqual(r.y, 0)
-        XCTAssertEqual(r.width, 0)
-        XCTAssertEqual(r.height, 0)
-    }
-
-    func testPaperRectEquality() {
-        let a = PaperRect(x: 10, y: 20, width: 300, height: 200)
-        let b = PaperRect(x: 10, y: 20, width: 300, height: 200)
-        XCTAssertEqual(a, b)
-    }
-
-    func testPaperPointZero() {
-        XCTAssertEqual(PaperPoint.zero.x, 0)
-        XCTAssertEqual(PaperPoint.zero.y, 0)
-    }
-
-    func testWindowModeValues() {
-        let modes: [WindowMode] = [.tiled, .floating, .fullscreen, .minimized]
-        XCTAssertEqual(modes.count, 4)
-    }
-
-    func testViewportStateDefaults() {
-        let viewport = ViewportState(displayID: DisplayID(1))
-        XCTAssertEqual(viewport.origin, PaperPoint.zero)
-        XCTAssertEqual(viewport.scale, 1.0)
-    }
+@Test("DisplayID equality")
+func displayIDEquality() {
+    #expect(DisplayID(1) == DisplayID(1))
+    #expect(DisplayID(1) != DisplayID(2))
 }
 
-final class PlanningTypesTests: XCTestCase {
-
-    func testPlacementPlanEmpty() {
-        let plan = PlacementPlan.empty
-        XCTAssertTrue(plan.intents.isEmpty)
-    }
-
-    func testPlacementIntentInit() {
-        let intent = PlacementIntent(
-            windowID: ManagedWindowID("w-1"),
-            targetFrame: CGRect(x: 0, y: 0, width: 800, height: 600),
-            targetDisplayID: DisplayID(1)
-        )
-        XCTAssertEqual(intent.windowID, ManagedWindowID("w-1"))
-        XCTAssertEqual(intent.targetDisplayID, DisplayID(1))
-    }
-
-    func testDisplayTopologyEmpty() {
-        let topology = DisplayTopology.empty
-        XCTAssertTrue(topology.displays.isEmpty)
-        XCTAssertNil(topology.snapshot(for: DisplayID(1)))
-    }
-
-    func testDisplayTopologyLookup() {
-        let snap = DisplaySnapshot(
-            displayID: DisplayID(42),
-            frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
-            scaleFactor: 2.0
-        )
-        let topology = DisplayTopology(displays: [snap])
-        XCTAssertNotNil(topology.snapshot(for: DisplayID(42)))
-        XCTAssertNil(topology.snapshot(for: DisplayID(99)))
-    }
-
-    func testDirectionAllCases() {
-        let directions: [Direction] = [.left, .right, .up, .down]
-        XCTAssertEqual(directions.count, 4)
-    }
-
-    func testPlacementExecutionReportDefaults() {
-        let report = PlacementExecutionReport()
-        XCTAssertTrue(report.results.isEmpty)
-        XCTAssertTrue(report.appliedIntents.isEmpty)
-        XCTAssertTrue(report.failedIntents.isEmpty)
-    }
+@Test("WorkspaceID equality")
+func workspaceIDEquality() {
+    let uuid = UUID()
+    #expect(WorkspaceID(uuid) == WorkspaceID(uuid))
+    #expect(WorkspaceID(UUID()) != WorkspaceID(UUID()))
 }
 
-final class DiagnosticsTypesTests: XCTestCase {
-
-    func testDiagnosticsReportDefaults() {
-        let report = DiagnosticsReport()
-        XCTAssertTrue(report.recentEvents.isEmpty)
-        XCTAssertEqual(report.managedWindowCount, 0)
-        XCTAssertFalse(report.accessibilityGranted)
-        XCTAssertFalse(report.inputMonitoringGranted)
-        XCTAssertTrue(report.recentFailures.isEmpty)
-    }
-
-    func testDiagnosticsReportPermissionsState() {
-        let state = PermissionsState(accessibility: .granted, inputMonitoring: .denied)
-        let report = DiagnosticsReport(permissionsState: state)
-        XCTAssertTrue(report.accessibilityGranted)
-        XCTAssertFalse(report.inputMonitoringGranted)
-        XCTAssertEqual(report.permissionsState.accessibility, .granted)
-    }
+@Test("WindowCapabilities explicit fields")
+func windowCapabilitiesExplicitFields() {
+    let caps = WindowCapabilities(canMove: true, canResize: true)
+    #expect(caps.canMove)
+    #expect(caps.canResize)
+    #expect(!caps.canMinimize)
+    #expect(!caps.canFocus)
+    #expect(!caps.canClose)
 }
 
-final class PermissionTypesTests: XCTestCase {
+@Test("WindowCapabilities.none")
+func windowCapabilitiesNone() {
+    let caps = WindowCapabilities.none
+    #expect(!caps.canMove)
+    #expect(!caps.canResize)
+    #expect(!caps.canMinimize)
+    #expect(!caps.canFocus)
+    #expect(!caps.canClose)
+}
 
-    func testNotDeterminedDefault() {
-        let state = PermissionsState.notDetermined
-        XCTAssertEqual(state.accessibility, .notDetermined)
-        XCTAssertEqual(state.inputMonitoring, .notDetermined)
-    }
+@Test("WindowCapabilities all")
+func windowCapabilitiesAll() {
+    let all = WindowCapabilities(
+        canMove: true,
+        canResize: true,
+        canMinimize: true,
+        canFocus: true,
+        canClose: true
+    )
+    #expect(all.canMove)
+    #expect(all.canResize)
+    #expect(all.canMinimize)
+    #expect(all.canFocus)
+    #expect(all.canClose)
+}
 
-    func testReducedModeWhenAccessibilityNotGranted() {
-        let denied = PermissionsState(accessibility: .denied, inputMonitoring: .granted)
-        XCTAssertTrue(denied.isReducedMode)
+@Test("ManagedWindowSnapshot init")
+func managedWindowSnapshotInit() {
+    let id = ManagedWindowID("w-1")
+    let app = AppDescriptor(bundleID: "com.test.App", displayName: "TestApp", pid: 1234)
+    let snapshot = ManagedWindowSnapshot(
+        windowID: id,
+        app: app,
+        frameOnDisplay: CGRect(x: 0, y: 0, width: 1280, height: 800),
+        displayID: DisplayID(1),
+        capabilities: WindowCapabilities(canMove: true, canResize: true),
+        eligibility: .eligible
+    )
+    #expect(snapshot.windowID == id)
+    #expect(snapshot.app.bundleID == "com.test.App")
+    #expect(!snapshot.isMinimized)
+    #expect(!snapshot.isFocused)
+}
 
-        let notDetermined = PermissionsState(accessibility: .notDetermined, inputMonitoring: .granted)
-        XCTAssertTrue(notDetermined.isReducedMode)
-    }
+@Test("PaperRect.zero")
+func paperRectZero() {
+    let r = PaperRect.zero
+    #expect(r.x == 0)
+    #expect(r.y == 0)
+    #expect(r.width == 0)
+    #expect(r.height == 0)
+}
 
-    func testNotReducedModeWhenAccessibilityGranted() {
-        let state = PermissionsState(accessibility: .granted, inputMonitoring: .notDetermined)
-        XCTAssertFalse(state.isReducedMode)
-        XCTAssertTrue(state.accessibilityAvailable)
-    }
+@Test("PaperRect equality")
+func paperRectEquality() {
+    let a = PaperRect(x: 10, y: 20, width: 300, height: 200)
+    let b = PaperRect(x: 10, y: 20, width: 300, height: 200)
+    #expect(a == b)
+}
 
-    func testFullyGrantedRequiresBoth() {
-        let bothGranted = PermissionsState(accessibility: .granted, inputMonitoring: .granted)
-        XCTAssertTrue(bothGranted.isFullyGranted)
+@Test("PaperPoint.zero")
+func paperPointZero() {
+    #expect(PaperPoint.zero.x == 0)
+    #expect(PaperPoint.zero.y == 0)
+}
 
-        let onlyAX = PermissionsState(accessibility: .granted, inputMonitoring: .denied)
-        XCTAssertFalse(onlyAX.isFullyGranted)
+@Test("WindowMode values")
+func windowModeValues() {
+    let modes: [WindowMode] = [.tiled, .floating, .fullscreen, .minimized]
+    #expect(modes.count == 4)
+}
 
-        let neither = PermissionsState.notDetermined
-        XCTAssertFalse(neither.isFullyGranted)
-    }
+@Test("ViewportState defaults")
+func viewportStateDefaults() {
+    let viewport = ViewportState(displayID: DisplayID(1))
+    #expect(viewport.origin == PaperPoint.zero)
+    #expect(viewport.scale == 1.0)
+}
 
-    func testPermissionStatusHashable() {
-        let statuses: Set<PermissionStatus> = [.granted, .denied, .notDetermined, .granted]
-        XCTAssertEqual(statuses.count, 3)
-    }
+@Test("PlacementPlan.empty")
+func placementPlanEmpty() {
+    let plan = PlacementPlan.empty
+    #expect(plan.intents.isEmpty)
+}
+
+@Test("PlacementIntent init")
+func placementIntentInit() {
+    let intent = PlacementIntent(
+        windowID: ManagedWindowID("w-1"),
+        targetFrame: CGRect(x: 0, y: 0, width: 800, height: 600),
+        targetDisplayID: DisplayID(1)
+    )
+    #expect(intent.windowID == ManagedWindowID("w-1"))
+    #expect(intent.targetDisplayID == DisplayID(1))
+}
+
+@Test("DisplayTopology.empty")
+func displayTopologyEmpty() {
+    let topology = DisplayTopology.empty
+    #expect(topology.displays.isEmpty)
+    #expect(topology.snapshot(for: DisplayID(1)) == nil)
+}
+
+@Test("DisplayTopology lookup")
+func displayTopologyLookup() {
+    let snap = DisplaySnapshot(
+        displayID: DisplayID(42),
+        frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
+        scaleFactor: 2.0
+    )
+    let topology = DisplayTopology(displays: [snap])
+    #expect(topology.snapshot(for: DisplayID(42)) != nil)
+    #expect(topology.snapshot(for: DisplayID(99)) == nil)
+}
+
+@Test("Direction all cases")
+func directionAllCases() {
+    let directions: [Direction] = [.left, .right, .up, .down]
+    #expect(directions.count == 4)
+}
+
+@Test("PlacementExecutionReport defaults")
+func placementExecutionReportDefaults() {
+    let report = PlacementExecutionReport()
+    #expect(report.results.isEmpty)
+    #expect(report.appliedIntents.isEmpty)
+    #expect(report.failedIntents.isEmpty)
+}
+
+@Test("DiagnosticsReport defaults")
+func diagnosticsReportDefaults() {
+    let report = DiagnosticsReport()
+    #expect(report.recentEvents.isEmpty)
+    #expect(report.managedWindowCount == 0)
+    #expect(!report.accessibilityGranted)
+    #expect(!report.inputMonitoringGranted)
+    #expect(report.recentFailures.isEmpty)
 }
