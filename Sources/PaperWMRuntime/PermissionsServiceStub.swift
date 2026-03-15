@@ -19,11 +19,31 @@ public final class PermissionsServiceStub: PermissionsServiceProtocol {
 
     // MARK: - Convenience accessors
 
-    /// Hard-coded to `false`; real implementation reads from the system.
-    public var accessibilityGranted: Bool { currentState.accessibility == .granted }
+    /// Returns `true` when `currentState.accessibility == .granted`.
+    /// Can be set directly for testing purposes.
+    public var accessibilityGranted: Bool {
+        get { currentState.accessibility == .granted }
+        set {
+            if newValue {
+                currentState = PermissionsState(accessibility: .granted, inputMonitoring: currentState.inputMonitoring)
+            } else {
+                currentState = PermissionsState(accessibility: .denied, inputMonitoring: currentState.inputMonitoring)
+            }
+        }
+    }
 
-    /// Hard-coded to `false`; real implementation reads from the system.
-    public var inputMonitoringGranted: Bool { currentState.inputMonitoring == .granted }
+    /// Returns `true` when `currentState.inputMonitoring == .granted`.
+    /// Can be set directly for testing purposes.
+    public var inputMonitoringGranted: Bool {
+        get { currentState.inputMonitoring == .granted }
+        set {
+            if newValue {
+                currentState = PermissionsState(accessibility: currentState.accessibility, inputMonitoring: .granted)
+            } else {
+                currentState = PermissionsState(accessibility: currentState.accessibility, inputMonitoring: .notDetermined)
+            }
+        }
+    }
 
     // MARK: - PermissionsServiceProtocol
 
