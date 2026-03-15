@@ -3,28 +3,42 @@ import PaperWMCore
 
 /// Stub implementation of `PermissionsServiceProtocol`.
 ///
-/// In a real implementation this wraps `AXIsProcessTrustedWithOptions` and
-/// `IOHIDCheckAccess` / `CGRequestPostEventAccess`.
+/// Returns safe conservative defaults (all permissions not determined).
+/// Used in tests and as a compile-time placeholder before the real
+/// `PermissionsService` from PaperWMMacAdapters is wired in.
 ///
-/// TODO (Phase 1): Implement real Accessibility trust check via AXIsProcessTrustedWithOptions.
-/// TODO (Phase 1): Implement real Input Monitoring check.
+/// TODO (Phase 1): Wire `PermissionsService` (PaperWMMacAdapters) into AppDelegate.
 public final class PermissionsServiceStub: PermissionsServiceProtocol {
 
-    /// Hard-coded to false; real implementation reads from the system.
-    public var accessibilityGranted: Bool { false }
+    /// The current permission state. Defaults to `.notDetermined` for all permissions.
+    public private(set) var currentState: PermissionsState
 
-    /// Hard-coded to false; real implementation reads from the system.
-    public var inputMonitoringGranted: Bool { false }
-
-    public init() {}
-
-    /// TODO: Call AXIsProcessTrustedWithOptions(_:) with a prompt option to trigger the system dialog.
-    public func requestAccessibilityPermission() {
-        // TODO: AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt: true] as CFDictionary)
+    public init(initialState: PermissionsState = .notDetermined) {
+        self.currentState = initialState
     }
 
-    /// TODO: Trigger the Input Monitoring system prompt via the appropriate API.
+    // MARK: - Convenience accessors
+
+    /// Hard-coded to `false`; real implementation reads from the system.
+    public var accessibilityGranted: Bool { currentState.accessibility == .granted }
+
+    /// Hard-coded to `false`; real implementation reads from the system.
+    public var inputMonitoringGranted: Bool { currentState.inputMonitoring == .granted }
+
+    // MARK: - PermissionsServiceProtocol
+
+    /// No-op in the stub — `currentState` is not updated.
+    public func refresh() {
+        // Stub: no system probe; state remains as initialised.
+    }
+
+    /// No-op in the stub; does not trigger any system dialog.
+    public func requestAccessibilityPermission() {
+        // TODO: Handled by PermissionsService in PaperWMMacAdapters.
+    }
+
+    /// No-op in the stub; does not trigger any system dialog.
     public func requestInputMonitoringPermission() {
-        // TODO: CGRequestPostEventAccess() or IOHIDRequestAccess(kIOHIDRequestTypePostEvent)
+        // TODO: Handled by PermissionsService in PaperWMMacAdapters.
     }
 }

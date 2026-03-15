@@ -36,15 +36,13 @@ public final class DiagnosticsServiceStub: DiagnosticsServiceProtocol {
     }
 
     public func currentReport(
-        accessibilityGranted: Bool,
-        inputMonitoringGranted: Bool,
+        permissionsState: PermissionsState,
         managedWindowCount: Int
     ) -> DiagnosticsReport {
         DiagnosticsReport(
             recentEvents: recentEvents,
             managedWindowCount: managedWindowCount,
-            accessibilityGranted: accessibilityGranted,
-            inputMonitoringGranted: inputMonitoringGranted,
+            permissionsState: permissionsState,
             recentFailures: recentFailures
         )
     }

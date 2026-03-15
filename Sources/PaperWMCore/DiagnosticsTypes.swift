@@ -10,24 +10,25 @@ public struct DiagnosticsReport: Sendable {
     public let recentEvents: [WMEvent]
     /// Number of currently managed windows.
     public let managedWindowCount: Int
-    /// Whether Accessibility permission is granted.
-    public let accessibilityGranted: Bool
-    /// Whether Input Monitoring permission is granted.
-    public let inputMonitoringGranted: Bool
+    /// Structured permission state at the time this report was generated.
+    public let permissionsState: PermissionsState
     /// Recent placement failures, if any.
     public let recentFailures: [PlacementResult]
+
+    /// Convenience: `true` when Accessibility permission is granted.
+    public var accessibilityGranted: Bool { permissionsState.accessibility == .granted }
+    /// Convenience: `true` when Input Monitoring permission is granted.
+    public var inputMonitoringGranted: Bool { permissionsState.inputMonitoring == .granted }
 
     public init(
         recentEvents: [WMEvent] = [],
         managedWindowCount: Int = 0,
-        accessibilityGranted: Bool = false,
-        inputMonitoringGranted: Bool = false,
+        permissionsState: PermissionsState = .notDetermined,
         recentFailures: [PlacementResult] = []
     ) {
         self.recentEvents = recentEvents
         self.managedWindowCount = managedWindowCount
-        self.accessibilityGranted = accessibilityGranted
-        self.inputMonitoringGranted = inputMonitoringGranted
+        self.permissionsState = permissionsState
         self.recentFailures = recentFailures
     }
 }
