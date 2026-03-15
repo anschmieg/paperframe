@@ -74,6 +74,21 @@ public protocol ProjectionPlannerProtocol: AnyObject {
     ) -> PlacementPlan
 }
 
+// MARK: - WindowMutator
+
+/// Applies a single placement intent to a live window using platform-specific APIs.
+///
+/// On macOS, the production implementation uses the Accessibility API (AX) to
+/// move and resize windows. The abstraction allows the orchestration engine to
+/// be tested independently of live platform APIs.
+public protocol WindowMutatorProtocol: AnyObject {
+    /// Attempts to apply the given intent to the window described by `snapshot`.
+    ///
+    /// Returns `.success` when the intent was fully applied, or an explicit
+    /// failure case when the window could not be moved or resized.
+    func applyPlacement(intent: PlacementIntent, snapshot: ManagedWindowSnapshot) -> PlacementResult
+}
+
 // MARK: - PlacementTransactionEngine
 
 /// Applies a `PlacementPlan` to real windows using transactional AX writes.
