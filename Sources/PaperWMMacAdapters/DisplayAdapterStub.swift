@@ -1,41 +1,6 @@
 import AppKit
 import PaperWMCore
 
-/// Stub for building `DisplayTopology` snapshots from the live NSScreen list.
-///
-/// In a real implementation this also registers for
-/// `NSApplication.didChangeScreenParametersNotification` to detect display changes.
-///
-/// TODO (Phase 1): Wire up `NSApplication.didChangeScreenParametersNotification`.
-/// TODO (Phase 1): Map `CGDirectDisplayID` from `NSScreen` to `DisplayID`.
-public final class DisplayAdapterStub {
-
-    public init() {}
-
-    // MARK: - Topology snapshot
-
-    /// Builds a `DisplayTopology` from the currently connected screens.
-    ///
-    /// TODO: Use `NSScreen.screens` and extract `CGDirectDisplayID` via
-    ///       `screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]`.
-    public func currentTopology() -> DisplayTopology {
-        // TODO: Real implementation:
-        //   let snapshots = NSScreen.screens.compactMap { screen -> DisplaySnapshot? in
-        //       guard let number = screen.deviceDescription[
-        //           NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        //       else { return nil }
-        //       let id = DisplayID(number.uint32Value)
-        //       return DisplaySnapshot(
-        //           displayID: id,
-        //           frame: screen.frame,
-        //           scaleFactor: screen.backingScaleFactor
-        //       )
-        //   }
-        //   return DisplayTopology(displays: snapshots)
-        return .empty
-    }
-}
-
 /// Stub for observing `NSWorkspace` events (active Space, app launch/quit).
 ///
 /// TODO (Phase 4): Implement AX observer registration per running app.
