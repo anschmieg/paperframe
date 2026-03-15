@@ -10,6 +10,7 @@ import PaperWMRuntime
 /// TODO (Phase 1): Add a Settings window and Onboarding / Permissions flow.
 /// TODO (Phase 1): Add a Diagnostics inspector panel.
 /// TODO (Phase 4): Start `ObserverAndReconcileHubProtocol` after permissions confirmed.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Runtime services (stubs)

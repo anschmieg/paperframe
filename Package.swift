@@ -11,6 +11,11 @@ let package = Package(
         .library(name: "PaperWMRuntime", targets: ["PaperWMRuntime"]),
     ],
     dependencies: [
+        // NOTE: This explicit dependency is required for CLT-only (Command Line Tools)
+        // local development. While Swift 6+ includes swift-testing in the full Xcode
+        // toolchain, the CLT-only environment needs the explicit package dependency.
+        // The deprecation warnings about "Swift Testing is now included in the
+        // Swift 6 toolchain" can be safely ignored in this configuration.
         .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.9.0")
     ],
     targets: [
@@ -32,29 +37,36 @@ let package = Package(
         ),
 
         .executableTarget(
-            name: "PaperWMApp",                                                                                                                                   dependencies: ["PaperWMCore", "PaperWMMacAdapters", "PaperWMRuntime"],
+            name: "PaperWMApp",
+            dependencies: ["PaperWMCore", "PaperWMMacAdapters", "PaperWMRuntime"],
             path: "Sources/PaperWMApp"
         ),
 
-        .testTarget(                                                                                                                                              name: "PaperWMCoreTests",
+        .testTarget(
+            name: "PaperWMCoreTests",
             dependencies: [
                 "PaperWMCore",
                 .product(name: "Testing", package: "swift-testing")
-            ],                                                                                                                                                    path: "Tests/PaperWMCoreTests"
+            ],
+            path: "Tests/PaperWMCoreTests"
         ),
         .testTarget(
             name: "PaperWMMacAdaptersTests",
-            dependencies: [                                                                                                                                           "PaperWMMacAdapters",
+            dependencies: [
+                "PaperWMMacAdapters",
                 "PaperWMCore",
                 .product(name: "Testing", package: "swift-testing")
             ],
-            path: "Tests/PaperWMMacAdaptersTests"                                                                                                             ),
+            path: "Tests/PaperWMMacAdaptersTests"
+        ),
         .testTarget(
             name: "PaperWMRuntimeTests",
             dependencies: [
-                "PaperWMRuntime",                                                                                                                                     "PaperWMCore",
+                "PaperWMRuntime",
+                "PaperWMCore",
                 .product(name: "Testing", package: "swift-testing")
             ],
             path: "Tests/PaperWMRuntimeTests"
-        ),                                                                                                                                                ]
+        ),
+    ]
 )
