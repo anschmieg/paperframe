@@ -9,10 +9,11 @@ import CoreGraphics
 /// Configurable fake inventory service for engine tests.
 private final class FakeWindowInventoryService: WindowInventoryServiceProtocol {
     var snapshots: [ManagedWindowSnapshot]
+    var refreshCallCount: Int = 0
     init(snapshots: [ManagedWindowSnapshot] = []) {
         self.snapshots = snapshots
     }
-    func refreshSnapshot() async {}
+    func refreshSnapshot() async { refreshCallCount += 1 }
 }
 
 /// Spy mutator that records applied intents and returns configurable results.
@@ -24,6 +25,57 @@ private final class SpyWindowMutator: WindowMutatorProtocol {
     func applyPlacement(intent: PlacementIntent, snapshot: ManagedWindowSnapshot) -> PlacementResult {
         appliedIntents.append(intent)
         return resultsByWindowID[intent.windowID] ?? defaultResult
+    }
+}
+
+// MARK: - Test doubles for ReconciliationCoordinator tests
+
+/// Spy planner that returns a configurable plan and records call arguments.
+private final class SpyProjectionPlanner: ProjectionPlannerProtocol {
+    var stubbedPlan: PlacementPlan = .empty
+    var lastSnapshots: [ManagedWindowSnapshot] = []
+    var lastTopology: DisplayTopology = .empty
+    var callCount: Int = 0
+
+    func computePlan(
+        snapshots: [ManagedWindowSnapshot],
+        topology: DisplayTopology,
+        worldState: any WorldStateProtocol
+    ) -> PlacementPlan {
+        callCount += 1
+        lastSnapshots = snapshots
+        lastTopology = topology
+        return stubbedPlan
+    }
+}
+
+/// Spy engine that records the plan it received and returns a configurable report.
+private final class SpyPlacementTransactionEngine: PlacementTransactionEngineProtocol {
+    var stubbedReport: PlacementExecutionReport = PlacementExecutionReport()
+    var receivedPlan: PlacementPlan?
+    var callCount: Int = 0
+
+    func execute(plan: PlacementPlan) async -> PlacementExecutionReport {
+        callCount += 1
+        receivedPlan = plan
+        return stubbedReport
+    }
+}
+
+/// Spy diagnostics service that records every call.
+private final class SpyDiagnosticsService: DiagnosticsServiceProtocol {
+    var recordedEvents: [WMEvent] = []
+    var recordedFailures: [PlacementResult] = []
+
+    func record(event: WMEvent) { recordedEvents.append(event) }
+    func record(failure: PlacementResult) { recordedFailures.append(failure) }
+    func currentReport(permissionsState: PermissionsState, managedWindowCount: Int) -> DiagnosticsReport {
+        DiagnosticsReport(
+            recentEvents: recordedEvents,
+            managedWindowCount: managedWindowCount,
+            permissionsState: permissionsState,
+            recentFailures: recordedFailures
+        )
     }
 }
 
@@ -50,6 +102,25 @@ private func makeTestIntent(id: String) -> PlacementIntent {
         windowID: ManagedWindowID(id),
         targetFrame: CoreGraphics.CGRect(x: 0, y: 0, width: 1000, height: 700),
         targetDisplayID: DisplayID(1)
+    )
+}
+
+/// Creates a `ReconciliationCoordinator` wired with the given collaborators.
+private func makeCoordinator(
+    inventory: FakeWindowInventoryService = FakeWindowInventoryService(),
+    topology: DisplayTopologyProviderStub = DisplayTopologyProviderStub(),
+    planner: SpyProjectionPlanner = SpyProjectionPlanner(),
+    engine: SpyPlacementTransactionEngine = SpyPlacementTransactionEngine(),
+    worldState: WorldStateStub = WorldStateStub(),
+    diagnostics: SpyDiagnosticsService = SpyDiagnosticsService()
+) -> ReconciliationCoordinator {
+    ReconciliationCoordinator(
+        inventoryService: inventory,
+        topologyProvider: topology,
+        planner: planner,
+        engine: engine,
+        worldState: worldState,
+        diagnostics: diagnostics
     )
 }
 
@@ -421,4 +492,228 @@ func enginePermissionDeniedDoesNotCallMutator() async {
 
     _ = await engine.execute(plan: PlacementPlan(intents: [makeTestIntent(id: "w-1")]))
     #expect(mutator.appliedIntents.isEmpty)
+}
+
+// MARK: - ReconciliationCoordinator tests
+
+@Test("ReconciliationCoordinator empty inventory produces empty result")
+func reconciliationCoordinatorEmptyInventoryProducesEmptyResult() async {
+    let inventory = FakeWindowInventoryService(snapshots: [])
+    let planner = SpyProjectionPlanner()
+    let engine = SpyPlacementTransactionEngine()
+    let coordinator = makeCoordinator(inventory: inventory, planner: planner, engine: engine)
+
+    let result = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(result.snapshotCount == 0)
+    #expect(result.planIntentCount == 0)
+    #expect(result.executionReport.appliedIntents.isEmpty)
+    #expect(result.executionReport.failedIntents.isEmpty)
+    #expect(planner.callCount == 1)
+    #expect(engine.callCount == 1)
+}
+
+@Test("ReconciliationCoordinator refreshes inventory before planning")
+func reconciliationCoordinatorRefreshesInventoryBeforePlanning() async {
+    let inventory = FakeWindowInventoryService(snapshots: [makeTestSnapshot(id: "w-1")])
+    let coordinator = makeCoordinator(inventory: inventory)
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(inventory.refreshCallCount == 1)
+}
+
+@Test("ReconciliationCoordinator forwards snapshots and topology to planner")
+func reconciliationCoordinatorForwardsSnapshotsAndTopologyToPlanner() async {
+    let snapshot = makeTestSnapshot(id: "w-1")
+    let display = DisplaySnapshot(
+        displayID: DisplayID(42),
+        frame: CoreGraphics.CGRect(x: 0, y: 0, width: 2560, height: 1440),
+        scaleFactor: 2.0
+    )
+    let topology = DisplayTopology(displays: [display])
+    let inventory = FakeWindowInventoryService(snapshots: [snapshot])
+    let topologyProvider = DisplayTopologyProviderStub(topology: topology)
+    let planner = SpyProjectionPlanner()
+    let coordinator = makeCoordinator(
+        inventory: inventory,
+        topology: topologyProvider,
+        planner: planner
+    )
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(planner.lastSnapshots.count == 1)
+    #expect(planner.lastTopology.displays.count == 1)
+    #expect(planner.lastTopology.displays.first?.displayID == DisplayID(42))
+}
+
+@Test("ReconciliationCoordinator forwards planner output to engine")
+func reconciliationCoordinatorForwardsPlannerOutputToEngine() async {
+    let intent = makeTestIntent(id: "w-1")
+    let planner = SpyProjectionPlanner()
+    planner.stubbedPlan = PlacementPlan(intents: [intent])
+    let engine = SpyPlacementTransactionEngine()
+    let coordinator = makeCoordinator(planner: planner, engine: engine)
+
+    let result = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(engine.callCount == 1)
+    #expect(engine.receivedPlan?.intents.count == 1)
+    #expect(result.planIntentCount == 1)
+}
+
+@Test("ReconciliationCoordinator result captures execution report")
+func reconciliationCoordinatorResultCapturesExecutionReport() async {
+    let intent = makeTestIntent(id: "w-1")
+    let executionReport = PlacementExecutionReport(
+        results: [.success],
+        appliedIntents: [intent],
+        failedIntents: []
+    )
+    let engine = SpyPlacementTransactionEngine()
+    engine.stubbedReport = executionReport
+    let coordinator = makeCoordinator(engine: engine)
+
+    let result = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(result.executionReport.appliedIntents.count == 1)
+    #expect(result.executionReport.failedIntents.isEmpty)
+}
+
+@Test("ReconciliationCoordinator records trigger event for WMEvent reason")
+func reconciliationCoordinatorRecordsTriggerEventForWMEventReason() async {
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(diagnostics: diagnostics)
+
+    _ = await coordinator.reconcile(reason: .event(.displayTopologyChanged))
+
+    #expect(diagnostics.recordedEvents.count == 1)
+    if case .displayTopologyChanged = diagnostics.recordedEvents.first {
+        // expected
+    } else {
+        Issue.record("Expected .displayTopologyChanged, got \(String(describing: diagnostics.recordedEvents.first))")
+    }
+}
+
+@Test("ReconciliationCoordinator records trigger event for displayTopologyChanged reason")
+func reconciliationCoordinatorRecordsTriggerEventForTopologyReason() async {
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(diagnostics: diagnostics)
+
+    _ = await coordinator.reconcile(reason: .displayTopologyChanged)
+
+    #expect(diagnostics.recordedEvents.count == 1)
+}
+
+@Test("ReconciliationCoordinator does not record event for manualRefresh reason")
+func reconciliationCoordinatorDoesNotRecordEventForManualRefresh() async {
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(diagnostics: diagnostics)
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(diagnostics.recordedEvents.isEmpty)
+}
+
+@Test("ReconciliationCoordinator records placement failures in diagnostics")
+func reconciliationCoordinatorRecordsPlacementFailuresInDiagnostics() async {
+    let windowID = ManagedWindowID("w-fail")
+    let intent = makeTestIntent(id: "w-fail")
+    let executionReport = PlacementExecutionReport(
+        results: [.failed(windowID: windowID, reason: "AX timeout")],
+        appliedIntents: [],
+        failedIntents: [intent]
+    )
+    let engine = SpyPlacementTransactionEngine()
+    engine.stubbedReport = executionReport
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(engine: engine, diagnostics: diagnostics)
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(diagnostics.recordedFailures.count == 1)
+}
+
+@Test("ReconciliationCoordinator records resistedByApp failure in diagnostics")
+func reconciliationCoordinatorRecordsResistedByAppFailure() async {
+    let windowID = ManagedWindowID("w-resist")
+    let intent = makeTestIntent(id: "w-resist")
+    let executionReport = PlacementExecutionReport(
+        results: [.resistedByApp(windowID: windowID)],
+        appliedIntents: [],
+        failedIntents: [intent]
+    )
+    let engine = SpyPlacementTransactionEngine()
+    engine.stubbedReport = executionReport
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(engine: engine, diagnostics: diagnostics)
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(diagnostics.recordedFailures.count == 1)
+}
+
+@Test("ReconciliationCoordinator does not record success results as failures")
+func reconciliationCoordinatorDoesNotRecordSuccessAsFailure() async {
+    let intent = makeTestIntent(id: "w-ok")
+    let executionReport = PlacementExecutionReport(
+        results: [.success],
+        appliedIntents: [intent],
+        failedIntents: []
+    )
+    let engine = SpyPlacementTransactionEngine()
+    engine.stubbedReport = executionReport
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(engine: engine, diagnostics: diagnostics)
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(diagnostics.recordedFailures.isEmpty)
+}
+
+@Test("ReconciliationCoordinator result reason matches input reason")
+func reconciliationCoordinatorResultReasonMatchesInput() async {
+    let coordinator = makeCoordinator()
+
+    let result = await coordinator.reconcile(reason: .startupInitialization)
+
+    if case .startupInitialization = result.reason {
+        // expected
+    } else {
+        Issue.record("Expected .startupInitialization, got \(result.reason)")
+    }
+}
+
+@Test("ReconciliationCoordinator empty plan path executes engine with empty plan")
+func reconciliationCoordinatorEmptyPlanPathExecutesEngineWithEmptyPlan() async {
+    let planner = SpyProjectionPlanner()
+    planner.stubbedPlan = .empty
+    let engine = SpyPlacementTransactionEngine()
+    let coordinator = makeCoordinator(planner: planner, engine: engine)
+
+    let result = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(result.planIntentCount == 0)
+    // Engine is always invoked, even for empty plans, so it can record its own metrics.
+    #expect(engine.callCount == 1)
+    #expect(engine.receivedPlan?.intents.isEmpty == true)
+}
+
+@Test("DisplayTopologyProviderStub default returns empty topology")
+func displayTopologyProviderStubDefaultReturnsEmptyTopology() {
+    let stub = DisplayTopologyProviderStub()
+    #expect(stub.currentTopology().displays.isEmpty)
+}
+
+@Test("DisplayTopologyProviderStub returns configured topology")
+func displayTopologyProviderStubReturnsConfiguredTopology() {
+    let display = DisplaySnapshot(
+        displayID: DisplayID(1),
+        frame: CoreGraphics.CGRect(x: 0, y: 0, width: 1920, height: 1080),
+        scaleFactor: 1.0
+    )
+    let topology = DisplayTopology(displays: [display])
+    let stub = DisplayTopologyProviderStub(topology: topology)
+    #expect(stub.currentTopology().displays.count == 1)
 }

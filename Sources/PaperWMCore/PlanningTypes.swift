@@ -162,3 +162,36 @@ public enum WMCommand: Sendable {
 public enum Direction: Sendable {
     case left, right, up, down
 }
+
+// MARK: - Reconciliation result
+
+/// A structured report returned after a single reconciliation pass completes.
+///
+/// Captures the trigger reason, the inventory size at planning time, how many
+/// intents were computed, and the full placement execution report.
+public struct ReconcileResult: Sendable {
+    /// The reason this reconcile pass was triggered.
+    public let reason: ReconcileReason
+    /// Number of window snapshots available when planning was performed.
+    public let snapshotCount: Int
+    /// Number of placement intents in the computed plan.
+    public let planIntentCount: Int
+    /// The outcome of executing the placement plan.
+    public let executionReport: PlacementExecutionReport
+    /// Wall-clock timestamp when the pass completed.
+    public let timestamp: Date
+
+    public init(
+        reason: ReconcileReason,
+        snapshotCount: Int,
+        planIntentCount: Int,
+        executionReport: PlacementExecutionReport,
+        timestamp: Date = Date()
+    ) {
+        self.reason = reason
+        self.snapshotCount = snapshotCount
+        self.planIntentCount = planIntentCount
+        self.executionReport = executionReport
+        self.timestamp = timestamp
+    }
+}

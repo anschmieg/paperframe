@@ -142,6 +142,17 @@ public protocol PersistenceStoreProtocol: AnyObject {
     func save() throws
 }
 
+// MARK: - DisplayTopologyProvider
+
+/// Provides the current display topology snapshot.
+///
+/// Abstracts over `DisplayAdapter` (PaperWMMacAdapters) so that the runtime
+/// coordinator can be tested without a real screen environment.
+public protocol DisplayTopologyProviderProtocol: AnyObject {
+    /// Returns the current display topology.
+    func currentTopology() -> DisplayTopology
+}
+
 // MARK: - DiagnosticsService
 
 /// Provides visibility into runtime state, events, and failures.
