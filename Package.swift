@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -10,49 +10,51 @@ let package = Package(
         .library(name: "PaperWMMacAdapters", targets: ["PaperWMMacAdapters"]),
         .library(name: "PaperWMRuntime", targets: ["PaperWMRuntime"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.9.0")
+    ],
     targets: [
-        // MARK: Core — pure data types and service protocols; no macOS framework imports.
         .target(
             name: "PaperWMCore",
             path: "Sources/PaperWMCore"
         ),
 
-        // MARK: Mac Adapters — AX / display / workspace adapter stubs. Depends on Core.
         .target(
             name: "PaperWMMacAdapters",
             dependencies: ["PaperWMCore"],
             path: "Sources/PaperWMMacAdapters"
         ),
 
-        // MARK: Runtime — domain service stubs. Depends on Core.
         .target(
             name: "PaperWMRuntime",
             dependencies: ["PaperWMCore"],
             path: "Sources/PaperWMRuntime"
         ),
 
-        // MARK: App — menu-bar executable shell. Depends on all library targets.
         .executableTarget(
-            name: "PaperWMApp",
-            dependencies: ["PaperWMCore", "PaperWMMacAdapters", "PaperWMRuntime"],
+            name: "PaperWMApp",                                                                                                                                   dependencies: ["PaperWMCore", "PaperWMMacAdapters", "PaperWMRuntime"],
             path: "Sources/PaperWMApp"
         ),
 
-        // MARK: Test targets
-        .testTarget(
-            name: "PaperWMCoreTests",
-            dependencies: ["PaperWMCore"],
-            path: "Tests/PaperWMCoreTests"
+        .testTarget(                                                                                                                                              name: "PaperWMCoreTests",
+            dependencies: [
+                "PaperWMCore",
+                .product(name: "Testing", package: "swift-testing")
+            ],                                                                                                                                                    path: "Tests/PaperWMCoreTests"
         ),
         .testTarget(
             name: "PaperWMMacAdaptersTests",
-            dependencies: ["PaperWMMacAdapters"],
-            path: "Tests/PaperWMMacAdaptersTests"
-        ),
+            dependencies: [                                                                                                                                           "PaperWMMacAdapters",
+                "PaperWMCore",
+                .product(name: "Testing", package: "swift-testing")
+            ],
+            path: "Tests/PaperWMMacAdaptersTests"                                                                                                             ),
         .testTarget(
             name: "PaperWMRuntimeTests",
-            dependencies: ["PaperWMRuntime"],
+            dependencies: [
+                "PaperWMRuntime",                                                                                                                                     "PaperWMCore",
+                .product(name: "Testing", package: "swift-testing")
+            ],
             path: "Tests/PaperWMRuntimeTests"
-        ),
-    ]
+        ),                                                                                                                                                ]
 )

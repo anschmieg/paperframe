@@ -1,61 +1,52 @@
-import XCTest
+import Testing
 import Cocoa
 @testable import PaperWMMacAdapters
 import PaperWMCore
 
-/// Bootstrap tests for the Mac Adapters layer.
-///
-/// These tests confirm the stubs compile and return safe default values.
-/// Real behavior tests will be added in later phases when adapters are implemented.
-final class AXAdapterStubTests: XCTestCase {
-
-    func testInitDoesNotCrash() {
-        _ = AXAdapterStub()
-    }
-
-    func testWindowElementsReturnsEmpty() {
-        // AXUIElementCreateSystemWide() gives a valid element to pass to the stub.
-        let axAdapter = AXAdapterStub()
-        let systemElement = AXUIElementCreateSystemWide()
-        let windows = axAdapter.windowElements(for: systemElement)
-        XCTAssertTrue(windows.isEmpty, "Stub should return empty array")
-    }
-
-    func testProbeCapabilitiesReturnsNone() {
-        let axAdapter = AXAdapterStub()
-        let systemElement = AXUIElementCreateSystemWide()
-        let caps = axAdapter.probeCapabilities(of: systemElement)
-        XCTAssertFalse(caps.canMove, "Stub should return all-false capabilities")
-        XCTAssertFalse(caps.canResize, "Stub should return all-false capabilities")
-    }
-
-    func testApplicationElementReturnsNil() {
-        let axAdapter = AXAdapterStub()
-        // pid 0 is not a valid app pid; stub should return nil regardless.
-        let element = axAdapter.applicationElement(for: 0)
-        XCTAssertNil(element)
-    }
+@Test("AXAdapterStub init does not crash")
+func axAdapterStubInitDoesNotCrash() {
+    _ = AXAdapterStub()
 }
 
-final class DisplayAdapterStubTests: XCTestCase {
-
-    func testCurrentTopologyReturnsEmpty() {
-        let adapter = DisplayAdapterStub()
-        let topology = adapter.currentTopology()
-        // Stub always returns empty; real implementation will use NSScreen.
-        XCTAssertTrue(topology.displays.isEmpty)
-    }
+@Test("AXAdapterStub windowElements returns empty")
+func axAdapterStubWindowElementsReturnsEmpty() {
+    let axAdapter = AXAdapterStub()
+    let systemElement = AXUIElementCreateSystemWide()
+    let windows = axAdapter.windowElements(for: systemElement)
+    #expect(windows.isEmpty)
 }
 
-final class WorkspaceAdapterStubTests: XCTestCase {
+@Test("AXAdapterStub probeCapabilities returns none")
+func axAdapterStubProbeCapabilitiesReturnsNone() {
+    let axAdapter = AXAdapterStub()
+    let systemElement = AXUIElementCreateSystemWide()
+    let caps = axAdapter.probeCapabilities(of: systemElement)
+    #expect(!caps.canMove)
+    #expect(!caps.canResize)
+}
 
-    func testFrontmostAppReturnsNil() {
-        let adapter = WorkspaceAdapterStub()
-        XCTAssertNil(adapter.frontmostApp())
-    }
+@Test("AXAdapterStub applicationElement returns nil")
+func axAdapterStubApplicationElementReturnsNil() {
+    let axAdapter = AXAdapterStub()
+    let element = axAdapter.applicationElement(for: 0)
+    #expect(element == nil)
+}
 
-    func testRunningAppsReturnsEmpty() {
-        let adapter = WorkspaceAdapterStub()
-        XCTAssertTrue(adapter.runningApps().isEmpty)
-    }
+@Test("DisplayAdapterStub currentTopology returns empty")
+func displayAdapterStubCurrentTopologyReturnsEmpty() {
+    let adapter = DisplayAdapterStub()
+    let topology = adapter.currentTopology()
+    #expect(topology.displays.isEmpty)
+}
+
+@Test("WorkspaceAdapterStub frontmostApp returns nil")
+func workspaceAdapterStubFrontmostAppReturnsNil() {
+    let adapter = WorkspaceAdapterStub()
+    #expect(adapter.frontmostApp() == nil)
+}
+
+@Test("WorkspaceAdapterStub runningApps returns empty")
+func workspaceAdapterStubRunningAppsReturnsEmpty() {
+    let adapter = WorkspaceAdapterStub()
+    #expect(adapter.runningApps().isEmpty)
 }
