@@ -38,6 +38,15 @@ func displayAdapterInitDoesNotCrash() {
     _ = DisplayAdapter()
 }
 
+@Test("DisplayAdapter conforms to DisplayTopologyProviderProtocol")
+func displayAdapterConformsToDisplayTopologyProviderProtocol() {
+    // Verifies that DisplayAdapter can be used as any DisplayTopologyProviderProtocol,
+    // which is the contract required by ReconciliationCoordinator.
+    let adapter = DisplayAdapter()
+    let provider: any DisplayTopologyProviderProtocol = adapter
+    _ = provider.currentTopology()
+}
+
 @Test("DisplayAdapter currentTopology returns a non-nil topology")
 func displayAdapterCurrentTopologyIsNonNil() {
     let adapter = DisplayAdapter()

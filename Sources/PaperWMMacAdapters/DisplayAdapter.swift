@@ -14,7 +14,7 @@ import PaperWMCore
 ///
 /// TODO (Phase 3): Register for `NSApplication.didChangeScreenParametersNotification`
 ///   and drive a topology-refresh event into the reconcile hub when displays change.
-public final class DisplayAdapter {
+public final class DisplayAdapter: DisplayTopologyProviderProtocol {
 
     public init() {}
 

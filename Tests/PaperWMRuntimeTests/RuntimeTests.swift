@@ -717,3 +717,84 @@ func displayTopologyProviderStubReturnsConfiguredTopology() {
     let stub = DisplayTopologyProviderStub(topology: topology)
     #expect(stub.currentTopology().displays.count == 1)
 }
+
+// MARK: - Startup and manual-refresh trigger tests
+
+@Test("Startup trigger with stub planner produces zero intents and completes safely")
+func startupTriggerWithStubPlannerCompletesSafely() async {
+    // Mirrors the production bootstrap composition: stub planner returns empty plan.
+    let inventory = FakeWindowInventoryService(snapshots: [])
+    let planner = SpyProjectionPlanner()
+    planner.stubbedPlan = .empty
+    let engine = SpyPlacementTransactionEngine()
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(
+        inventory: inventory,
+        planner: planner,
+        engine: engine,
+        diagnostics: diagnostics
+    )
+
+    let result = await coordinator.reconcile(reason: .startupInitialization)
+
+    #expect(result.planIntentCount == 0)
+    #expect(result.executionReport.appliedIntents.isEmpty)
+    #expect(result.executionReport.failedIntents.isEmpty)
+    // .startupInitialization maps to nil WMEvent — no diagnostics event recorded.
+    #expect(diagnostics.recordedEvents.isEmpty)
+    // Engine is always invoked even for empty plans.
+    #expect(engine.callCount == 1)
+    guard case .startupInitialization = result.reason else {
+        Issue.record("Expected .startupInitialization, got \(result.reason)")
+        return
+    }
+}
+
+@Test("Manual refresh trigger with stub planner produces zero intents and completes safely")
+func manualRefreshTriggerWithStubPlannerCompletesSafely() async {
+    // Mirrors the Refresh menu-item trigger path.
+    let inventory = FakeWindowInventoryService(snapshots: [])
+    let planner = SpyProjectionPlanner()
+    planner.stubbedPlan = .empty
+    let engine = SpyPlacementTransactionEngine()
+    let diagnostics = SpyDiagnosticsService()
+    let coordinator = makeCoordinator(
+        inventory: inventory,
+        planner: planner,
+        engine: engine,
+        diagnostics: diagnostics
+    )
+
+    let result = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(result.planIntentCount == 0)
+    #expect(result.executionReport.appliedIntents.isEmpty)
+    #expect(result.executionReport.failedIntents.isEmpty)
+    // .manualRefresh maps to nil WMEvent — no diagnostics event recorded.
+    #expect(diagnostics.recordedEvents.isEmpty)
+    #expect(engine.callCount == 1)
+    guard case .manualRefresh = result.reason else {
+        Issue.record("Expected .manualRefresh, got \(result.reason)")
+        return
+    }
+}
+
+@Test("Startup trigger refreshes inventory exactly once")
+func startupTriggerRefreshesInventoryExactlyOnce() async {
+    let inventory = FakeWindowInventoryService(snapshots: [])
+    let coordinator = makeCoordinator(inventory: inventory)
+
+    _ = await coordinator.reconcile(reason: .startupInitialization)
+
+    #expect(inventory.refreshCallCount == 1)
+}
+
+@Test("Manual refresh trigger refreshes inventory exactly once")
+func manualRefreshTriggerRefreshesInventoryExactlyOnce() async {
+    let inventory = FakeWindowInventoryService(snapshots: [])
+    let coordinator = makeCoordinator(inventory: inventory)
+
+    _ = await coordinator.reconcile(reason: .manualRefresh)
+
+    #expect(inventory.refreshCallCount == 1)
+}

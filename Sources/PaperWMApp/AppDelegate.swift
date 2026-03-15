@@ -1,11 +1,23 @@
 import AppKit
 import PaperWMCore
+import PaperWMMacAdapters
 import PaperWMRuntime
 
 /// Application delegate for the PaperWM menu-bar app.
 ///
-/// This is a minimal Phase 1 shell. It sets up the status bar item and
-/// wires together the core runtime stubs.
+/// This is the production composition point. It wires together the real macOS adapters
+/// with the runtime reconciliation pipeline and exposes trigger paths for reconciliation.
+///
+/// Real adapters used:
+/// - `PermissionsService` — probes live Accessibility and Input Monitoring state.
+/// - `DisplayAdapter` — reads `NSScreen` for the current display topology.
+/// - `WindowInventoryService` — enumerates live windows via the AX layer.
+/// - `AXWindowMutator` — applies placement intents to live windows.
+///
+/// Stub dependencies (acceptable until the corresponding subsystems are implemented):
+/// - `DiagnosticsServiceStub` — in-memory event and failure ring buffer.
+/// - `WorldStateStub` — in-memory paper-space metadata store.
+/// - `ProjectionPlannerStub` — returns an empty plan; safe until Phase 4.
 ///
 /// TODO (Phase 1): Add a Settings window and Onboarding / Permissions flow.
 /// TODO (Phase 1): Add a Diagnostics inspector panel.
@@ -13,14 +25,33 @@ import PaperWMRuntime
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
-    // MARK: - Runtime services (stubs)
+    // MARK: - Runtime services
 
-    private let permissions = PermissionsServiceStub()
-    private let diagnostics = DiagnosticsServiceStub()
-    private let inventory   = WindowInventoryServiceStub()
-    private let worldState  = WorldStateStub()
-    private let planner     = ProjectionPlannerStub()
-    private let engine      = PlacementTransactionEngineStub()
+    private let permissions    = PermissionsService()
+    private let displayAdapter = DisplayAdapter()
+    private let diagnostics    = DiagnosticsServiceStub()
+    private let worldState     = WorldStateStub()
+    private let planner        = ProjectionPlannerStub()
+
+    // MARK: - Runtime pipeline (lazy to allow ordered initialization)
+
+    private lazy var inventory: WindowInventoryService = WindowInventoryService(
+        permissionsService: permissions
+    )
+    private lazy var mutator: AXWindowMutator = AXWindowMutator()
+    private lazy var engine: PlacementTransactionEngine = PlacementTransactionEngine(
+        permissionsService: permissions,
+        inventoryService: inventory,
+        mutator: mutator
+    )
+    private lazy var coordinator: ReconciliationCoordinator = ReconciliationCoordinator(
+        inventoryService: inventory,
+        topologyProvider: displayAdapter,
+        planner: planner,
+        engine: engine,
+        worldState: worldState,
+        diagnostics: diagnostics
+    )
 
     // MARK: - UI
 
@@ -32,9 +63,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         diagnostics.record(event: .displayTopologyChanged)
 
+        // Perform the initial reconciliation pass. Safe when the planner returns an
+        // empty plan (which it will until planning logic is implemented in Phase 4).
+        Task { [self] in
+            _ = await coordinator.reconcile(reason: .startupInitialization)
+        }
+
         // TODO: Check permissions and show onboarding if needed.
         // TODO: Start the observer/reconcile hub.
-        // TODO: Perform initial inventory refresh.
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -52,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(withTitle: "About PaperWM", action: #selector(showAbout), keyEquivalent: "")
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Refresh", action: #selector(refresh), keyEquivalent: "r")
         // TODO: Add layout commands (move, resize, cycle, etc.)
         menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
         menu.addItem(.separator())
@@ -64,6 +101,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showAbout() {
         NSApp.orderFrontStandardAboutPanel(nil)
+    }
+
+    /// Triggers a manual reconciliation pass. Safe to call at any time; produces
+    /// no placement work until the planner is implemented in Phase 4.
+    @objc private func refresh() {
+        Task { [self] in
+            _ = await coordinator.reconcile(reason: .manualRefresh)
+        }
     }
 
     @objc private func showDiagnostics() {
