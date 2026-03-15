@@ -53,7 +53,7 @@ public final class PermissionsService: PermissionsServiceProtocol {
     public func requestAccessibilityPermission() {
         // Passing the prompt option shows the system dialog when not trusted.
         // The return value is discarded here — call refresh() to read updated state.
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
     }
 

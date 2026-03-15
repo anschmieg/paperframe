@@ -53,81 +53,65 @@ func workspaceAdapterStubRunningAppsReturnsEmpty() {
 
 // MARK: - PermissionsService tests
 
-/// Tests for the real `PermissionsService` backed by macOS public APIs.
-///
-/// These tests validate the structural contract of `PermissionsService` without
-/// assuming any specific machine permission state. They assert that:
-/// - the service returns valid `PermissionStatus` values
-/// - the mapping rules (`AXIsProcessTrustedWithOptions` → non-.notDetermined, etc.) hold
-/// - convenience accessors are consistent with `currentState`
-/// - refresh and request methods do not crash
-final class PermissionsServiceTests: XCTestCase {
+@Test("PermissionsService init does not crash")
+func permissionsServiceInitDoesNotCrash() {
+    _ = PermissionsService()
+}
 
-    func testInitDoesNotCrash() {
-        _ = PermissionsService()
-    }
+@Test("Accessibility status is never notDetermined")
+func accessibilityStatusIsNeverNotDetermined() {
+    let service = PermissionsService()
+    #expect(service.currentState.accessibility == .granted || service.currentState.accessibility == .denied)
+}
 
-    /// Accessibility status must always be `.granted` or `.denied` — never `.notDetermined`.
-    ///
-    /// `AXIsProcessTrustedWithOptions` always returns a Boolean, so the service always
-    /// resolves to one of the two definitive states.
-    func testAccessibilityStatusIsNeverNotDetermined() {
-        let svc = PermissionsService()
-        XCTAssertNotEqual(svc.currentState.accessibility, .notDetermined,
-            "Accessibility status should be .granted or .denied, never .notDetermined")
-    }
+@Test("Accessibility granted matches currentState")
+func accessibilityGrantedMatchesCurrentState() {
+    let service = PermissionsService()
+    #expect(service.accessibilityGranted == (service.currentState.accessibility == .granted))
+}
 
-    /// The `accessibilityGranted` convenience accessor must be consistent with `currentState`.
-    func testAccessibilityGrantedMatchesCurrentState() {
-        let svc = PermissionsService()
-        XCTAssertEqual(svc.accessibilityGranted, svc.currentState.accessibility == .granted)
-    }
+@Test("Input monitoring granted matches currentState")
+func inputMonitoringGrantedMatchesCurrentState() {
+    let service = PermissionsService()
+    #expect(service.inputMonitoringGranted == (service.currentState.inputMonitoring == .granted))
+}
 
-    /// `isReducedMode` must be the inverse of Accessibility being granted.
-    func testReducedModeIsConsistentWithAccessibilityState() {
-        let svc = PermissionsService()
-        XCTAssertEqual(svc.currentState.isReducedMode, !svc.accessibilityGranted)
-    }
+@Test("Reduced mode is consistent with accessibility state")
+func reducedModeIsConsistentWithAccessibilityState() {
+    let service = PermissionsService()
+    #expect(service.currentState.isReducedMode == (service.currentState.accessibility != .granted))
+}
 
-    /// Input Monitoring probe uses a conservative mapping: the probe result is
-    /// never mapped to `.denied` — only `.granted` or `.notDetermined`.
-    func testInputMonitoringIsNeverDeniedFromProbeAlone() {
-        let svc = PermissionsService()
-        let im = svc.currentState.inputMonitoring
-        XCTAssertNotEqual(im, .denied,
-            "Input Monitoring should be .granted or .notDetermined (conservative); .denied is never returned by the probe alone")
-    }
+@Test("Input monitoring probe never returns denied")
+func inputMonitoringIsNeverDeniedFromProbeAlone() {
+    let service = PermissionsService()
+    #expect(service.currentState.inputMonitoring != .denied)
+}
 
-    /// The `inputMonitoringGranted` convenience accessor must be consistent with `currentState`.
-    func testInputMonitoringGrantedMatchesCurrentState() {
-        let svc = PermissionsService()
-        XCTAssertEqual(svc.inputMonitoringGranted, svc.currentState.inputMonitoring == .granted)
-    }
+@Test("PermissionsService refresh returns valid state")
+func permissionsServiceRefreshReturnsValidState() {
+    let service = PermissionsService()
+    service.refresh()
+    #expect(service.currentState.accessibility == .granted || service.currentState.accessibility == .denied)
+    #expect(service.currentState.inputMonitoring != .denied)
+}
 
-    func testRefreshReturnsValidState() {
-        let svc = PermissionsService()
-        svc.refresh()
-        // After a refresh the structural contract still holds.
-        XCTAssertNotEqual(svc.currentState.accessibility, .notDetermined)
-        XCTAssertNotEqual(svc.currentState.inputMonitoring, .denied)
-    }
+@Test("PermissionsService requestAccessibilityPermission does not crash")
+func permissionsServiceRequestAccessibilityPermissionDoesNotCrash() {
+    let service = PermissionsService()
+    service.requestAccessibilityPermission()
+}
 
-    func testRequestAccessibilityPermissionDoesNotCrash() {
-        let svc = PermissionsService()
-        // Must not crash; dialog behaviour is system-controlled.
-        svc.requestAccessibilityPermission()
-    }
+@Test("PermissionsService requestInputMonitoringPermission does not crash")
+func permissionsServiceRequestInputMonitoringPermissionDoesNotCrash() {
+    let service = PermissionsService()
+    service.requestInputMonitoringPermission()
+}
 
-    func testRequestInputMonitoringPermissionDoesNotCrash() {
-        let svc = PermissionsService()
-        svc.requestInputMonitoringPermission()
-    }
-
-    func testConformanceToProtocol() {
-        let svc: any PermissionsServiceProtocol = PermissionsService()
-        // All protocol accessors must be reachable.
-        let _ = svc.currentState
-        let _ = svc.accessibilityGranted
-        let _ = svc.inputMonitoringGranted
-    }
+@Test("PermissionsService conforms to protocol shape")
+func permissionsServiceConformanceToProtocol() {
+    let service: any PermissionsServiceProtocol = PermissionsService()
+    let _ = service.currentState
+    let _ = service.accessibilityGranted
+    let _ = service.inputMonitoringGranted
 }

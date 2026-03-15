@@ -35,7 +35,10 @@ func worldStateStubPaperWindowStateRoundtrip() {
     let id = ManagedWindowID("w-1")
     #expect(state.paperWindowState(for: id) == nil)
 
-    let pw = PaperWindowState(windowID: id, paperRect: PaperRect(x: 10, y: 20, width: 300, height: 200))
+    let pw = PaperWindowState(
+        windowID: id,
+        paperRect: PaperRect(x: 10, y: 20, width: 300, height: 200)
+    )
     state.updatePaperWindowState(pw)
 
     let retrieved = state.paperWindowState(for: id)
@@ -83,8 +86,10 @@ func diagnosticsServiceStubRecordEventAndReport() {
     svc.record(event: .activeSpaceChanged)
 
     let report = svc.currentReport(
-        accessibilityGranted: true,
-        inputMonitoringGranted: false,
+        permissionsState: PermissionsState(
+            accessibility: .granted,
+            inputMonitoring: .notDetermined
+        ),
         managedWindowCount: 3
     )
 
@@ -100,11 +105,15 @@ func diagnosticsServiceStubEventCapacityIsCapped() {
     for _ in 0..<10 {
         svc.record(event: .displayTopologyChanged)
     }
+
     let report = svc.currentReport(
-        accessibilityGranted: false,
-        inputMonitoringGranted: false,
+        permissionsState: PermissionsState(
+            accessibility: .denied,
+            inputMonitoring: .notDetermined
+        ),
         managedWindowCount: 0
     )
+
     #expect(report.recentEvents.count == 3)
 }
 
@@ -113,11 +122,15 @@ func diagnosticsServiceStubRecordFailure() {
     let svc = DiagnosticsServiceStub()
     let windowID = ManagedWindowID("w-fail")
     svc.record(failure: .failed(windowID: windowID, reason: "AX timeout"))
+
     let report = svc.currentReport(
-        accessibilityGranted: false,
-        inputMonitoringGranted: false,
+        permissionsState: PermissionsState(
+            accessibility: .denied,
+            inputMonitoring: .notDetermined
+        ),
         managedWindowCount: 0
     )
+
     #expect(report.recentFailures.count == 1)
 }
 
