@@ -32,11 +32,76 @@ func axAdapterStubApplicationElementReturnsNil() {
     #expect(element == nil)
 }
 
-@Test("DisplayAdapterStub currentTopology returns empty")
-func displayAdapterStubCurrentTopologyReturnsEmpty() {
-    let adapter = DisplayAdapterStub()
+@Test("DisplayAdapter init does not crash")
+func displayAdapterInitDoesNotCrash() {
+    _ = DisplayAdapter()
+}
+
+@Test("DisplayAdapter currentTopology returns a non-nil topology")
+func displayAdapterCurrentTopologyIsNonNil() {
+    let adapter = DisplayAdapter()
     let topology = adapter.currentTopology()
-    #expect(topology.displays.isEmpty)
+    // topology is always a valid value type; this asserts init+call does not crash
+    _ = topology.displays
+}
+
+@Test("DisplayAdapter topology display snapshots have positive frame dimensions")
+func displayAdapterTopologyFramesArePositive() {
+    let adapter = DisplayAdapter()
+    let topology = adapter.currentTopology()
+    for snapshot in topology.displays {
+        #expect(snapshot.frame.width > 0)
+        #expect(snapshot.frame.height > 0)
+    }
+}
+
+@Test("DisplayAdapter topology display snapshots have valid scale factors")
+func displayAdapterTopologyScaleFactorsAreValid() {
+    let adapter = DisplayAdapter()
+    let topology = adapter.currentTopology()
+    for snapshot in topology.displays {
+        #expect(snapshot.scaleFactor >= 1.0)
+    }
+}
+
+@Test("DisplayAdapter topology visible frames are consistent with full frames")
+func displayAdapterTopologyVisibleFramesConsistentWithFrames() {
+    let adapter = DisplayAdapter()
+    let topology = adapter.currentTopology()
+    for snapshot in topology.displays {
+        if let visibleFrame = snapshot.visibleFrame {
+            // Visible frame must fit within the full frame (or equal it on secondary displays).
+            #expect(visibleFrame.width <= snapshot.frame.width)
+            #expect(visibleFrame.height <= snapshot.frame.height)
+        }
+    }
+}
+
+@Test("DisplayAdapter topology has at most one primary display")
+func displayAdapterTopologyAtMostOnePrimary() {
+    let adapter = DisplayAdapter()
+    let topology = adapter.currentTopology()
+    let primaries = topology.displays.filter { $0.isPrimary }
+    #expect(primaries.count <= 1)
+}
+
+@Test("DisplayAdapter topology display IDs are unique")
+func displayAdapterTopologyDisplayIDsAreUnique() {
+    let adapter = DisplayAdapter()
+    let topology = adapter.currentTopology()
+    let ids = topology.displays.map { $0.displayID }
+    let uniqueIDs = Set(ids)
+    #expect(ids.count == uniqueIDs.count)
+}
+
+@Test("DisplayAdapter snapshot lookup works for returned displays")
+func displayAdapterSnapshotLookupWorksForReturnedDisplays() {
+    let adapter = DisplayAdapter()
+    let topology = adapter.currentTopology()
+    for snapshot in topology.displays {
+        let found = topology.snapshot(for: snapshot.displayID)
+        #expect(found != nil)
+    }
 }
 
 @Test("WorkspaceAdapterStub frontmostApp returns nil")

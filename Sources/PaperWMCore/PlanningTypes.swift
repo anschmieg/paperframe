@@ -5,15 +5,33 @@ import Foundation
 /// A snapshot of a single physical display's geometry.
 public struct DisplaySnapshot: Sendable {
     public let displayID: DisplayID
-    /// The display's frame in global screen coordinates.
+    /// The display's full frame in global screen coordinates.
     public let frame: CGRect
+    /// The display's usable frame, excluding the Dock and menu bar.
+    ///
+    /// `nil` when the usable area cannot be determined. Callers should
+    /// fall back to `frame` when this is absent.
+    public let visibleFrame: CGRect?
     /// Retina scale factor (1.0 for non-Retina, 2.0 for @2x, etc.).
     public let scaleFactor: Double
+    /// Whether this is the primary (main) display at snapshot time.
+    ///
+    /// Maps to `NSScreen.main`. `false` when the primary display cannot
+    /// be determined or when this snapshot was constructed synthetically.
+    public let isPrimary: Bool
 
-    public init(displayID: DisplayID, frame: CGRect, scaleFactor: Double) {
+    public init(
+        displayID: DisplayID,
+        frame: CGRect,
+        visibleFrame: CGRect? = nil,
+        scaleFactor: Double,
+        isPrimary: Bool = false
+    ) {
         self.displayID = displayID
         self.frame = frame
+        self.visibleFrame = visibleFrame
         self.scaleFactor = scaleFactor
+        self.isPrimary = isPrimary
     }
 }
 
