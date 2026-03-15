@@ -2,6 +2,7 @@ import Testing
 @testable import PaperWMRuntime
 import PaperWMCore
 import Foundation
+import CoreGraphics
 
 // MARK: - Test doubles for PlacementTransactionEngine tests
 
@@ -37,7 +38,7 @@ private func makeTestSnapshot(
     ManagedWindowSnapshot(
         windowID: ManagedWindowID(id),
         app: AppDescriptor(bundleID: "com.test.app", displayName: "TestApp", pid: 1234),
-        frameOnDisplay: CGRect(x: 100, y: 100, width: 800, height: 600),
+        frameOnDisplay: CoreGraphics.CGRect(x: 100, y: 100, width: 800, height: 600),
         displayID: DisplayID(1),
         capabilities: WindowCapabilities(canMove: canMove, canResize: canResize),
         eligibility: eligibility
@@ -47,7 +48,7 @@ private func makeTestSnapshot(
 private func makeTestIntent(id: String) -> PlacementIntent {
     PlacementIntent(
         windowID: ManagedWindowID(id),
-        targetFrame: CGRect(x: 0, y: 0, width: 1000, height: 700),
+        targetFrame: CoreGraphics.CGRect(x: 0, y: 0, width: 1000, height: 700),
         targetDisplayID: DisplayID(1)
     )
 }
