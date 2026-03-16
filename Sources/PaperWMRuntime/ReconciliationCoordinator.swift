@@ -18,6 +18,7 @@ import PaperWMCore
 ///
 /// TODO (Phase 4): Integrate with an `ObserverAndReconcileHubProtocol` so that
 ///                 AX and Space change events automatically trigger reconcile passes.
+@MainActor
 public final class ReconciliationCoordinator {
 
     private let inventoryService: any WindowInventoryServiceProtocol
