@@ -106,6 +106,7 @@ private func makeTestIntent(id: String) -> PlacementIntent {
 }
 
 /// Creates a `ReconciliationCoordinator` wired with the given collaborators.
+@MainActor
 private func makeCoordinator(
     inventory: FakeWindowInventoryService = FakeWindowInventoryService(),
     topology: DisplayTopologyProviderStub = DisplayTopologyProviderStub(),
@@ -139,12 +140,14 @@ func permissionsServiceStubRequestMethodsDoNotCrash() {
 }
 
 @Test("WindowInventoryServiceStub initial snapshots are empty")
+@MainActor
 func windowInventoryServiceStubInitialSnapshotsAreEmpty() {
     let svc = WindowInventoryServiceStub()
     #expect(svc.snapshots.isEmpty)
 }
 
 @Test("WindowInventoryServiceStub refreshSnapshot does not crash")
+@MainActor
 func windowInventoryServiceStubRefreshSnapshotDoesNotCrash() async {
     let svc = WindowInventoryServiceStub()
     await svc.refreshSnapshot()
@@ -194,6 +197,7 @@ func projectionPlannerStubReturnsEmptyPlan() {
 }
 
 @Test("PlacementTransactionEngineStub execute returns empty report")
+@MainActor
 func placementTransactionEngineStubExecuteReturnsEmptyReport() async {
     let engine = PlacementTransactionEngineStub()
     let report = await engine.execute(plan: .empty)
@@ -298,6 +302,7 @@ func windowMutatorStubReturnsConfiguredResult() {
 // MARK: - PlacementTransactionEngine tests
 
 @Test("PlacementTransactionEngine returns empty report for empty plan")
+@MainActor
 func engineReturnsEmptyReportForEmptyPlan() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted, inputMonitoring: .notDetermined
@@ -318,6 +323,7 @@ func engineReturnsEmptyReportForEmptyPlan() async {
 }
 
 @Test("PlacementTransactionEngine fails all intents when accessibility denied")
+@MainActor
 func engineFailsAllIntentsWhenAccessibilityDenied() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .denied, inputMonitoring: .notDetermined
@@ -341,6 +347,7 @@ func engineFailsAllIntentsWhenAccessibilityDenied() async {
 }
 
 @Test("PlacementTransactionEngine fails intent for missing window")
+@MainActor
 func engineFailsIntentForMissingWindow() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted, inputMonitoring: .notDetermined
@@ -364,6 +371,7 @@ func engineFailsIntentForMissingWindow() async {
 }
 
 @Test("PlacementTransactionEngine applies intent when mutator succeeds")
+@MainActor
 func engineAppliesIntentWhenMutatorSucceeds() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted, inputMonitoring: .notDetermined
@@ -387,6 +395,7 @@ func engineAppliesIntentWhenMutatorSucceeds() async {
 }
 
 @Test("PlacementTransactionEngine reports partial success accurately")
+@MainActor
 func engineReportsPartialSuccess() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted, inputMonitoring: .notDetermined
@@ -416,6 +425,7 @@ func engineReportsPartialSuccess() async {
 }
 
 @Test("PlacementTransactionEngine continues executing remaining intents after one fails")
+@MainActor
 func engineContinuesAfterOneFailure() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted, inputMonitoring: .notDetermined
@@ -449,6 +459,7 @@ func engineContinuesAfterOneFailure() async {
 }
 
 @Test("PlacementTransactionEngine result count equals intent count")
+@MainActor
 func engineResultCountEqualsIntentCount() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted, inputMonitoring: .notDetermined
@@ -478,6 +489,7 @@ func engineResultCountEqualsIntentCount() async {
 }
 
 @Test("PlacementTransactionEngine permission denied does not call mutator")
+@MainActor
 func enginePermissionDeniedDoesNotCallMutator() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .denied, inputMonitoring: .notDetermined
@@ -497,6 +509,7 @@ func enginePermissionDeniedDoesNotCallMutator() async {
 // MARK: - ReconciliationCoordinator tests
 
 @Test("ReconciliationCoordinator empty inventory produces empty result")
+@MainActor
 func reconciliationCoordinatorEmptyInventoryProducesEmptyResult() async {
     let inventory = FakeWindowInventoryService(snapshots: [])
     let planner = SpyProjectionPlanner()
@@ -514,6 +527,7 @@ func reconciliationCoordinatorEmptyInventoryProducesEmptyResult() async {
 }
 
 @Test("ReconciliationCoordinator refreshes inventory before planning")
+@MainActor
 func reconciliationCoordinatorRefreshesInventoryBeforePlanning() async {
     let inventory = FakeWindowInventoryService(snapshots: [makeTestSnapshot(id: "w-1")])
     let coordinator = makeCoordinator(inventory: inventory)
@@ -524,6 +538,7 @@ func reconciliationCoordinatorRefreshesInventoryBeforePlanning() async {
 }
 
 @Test("ReconciliationCoordinator forwards snapshots and topology to planner")
+@MainActor
 func reconciliationCoordinatorForwardsSnapshotsAndTopologyToPlanner() async {
     let snapshot = makeTestSnapshot(id: "w-1")
     let display = DisplaySnapshot(
@@ -549,6 +564,7 @@ func reconciliationCoordinatorForwardsSnapshotsAndTopologyToPlanner() async {
 }
 
 @Test("ReconciliationCoordinator forwards planner output to engine")
+@MainActor
 func reconciliationCoordinatorForwardsPlannerOutputToEngine() async {
     let intent = makeTestIntent(id: "w-1")
     let planner = SpyProjectionPlanner()
@@ -564,6 +580,7 @@ func reconciliationCoordinatorForwardsPlannerOutputToEngine() async {
 }
 
 @Test("ReconciliationCoordinator result captures execution report")
+@MainActor
 func reconciliationCoordinatorResultCapturesExecutionReport() async {
     let intent = makeTestIntent(id: "w-1")
     let executionReport = PlacementExecutionReport(
@@ -582,6 +599,7 @@ func reconciliationCoordinatorResultCapturesExecutionReport() async {
 }
 
 @Test("ReconciliationCoordinator records trigger event for WMEvent reason")
+@MainActor
 func reconciliationCoordinatorRecordsTriggerEventForWMEventReason() async {
     let diagnostics = SpyDiagnosticsService()
     let coordinator = makeCoordinator(diagnostics: diagnostics)
@@ -597,6 +615,7 @@ func reconciliationCoordinatorRecordsTriggerEventForWMEventReason() async {
 }
 
 @Test("ReconciliationCoordinator records trigger event for displayTopologyChanged reason")
+@MainActor
 func reconciliationCoordinatorRecordsTriggerEventForTopologyReason() async {
     let diagnostics = SpyDiagnosticsService()
     let coordinator = makeCoordinator(diagnostics: diagnostics)
@@ -607,6 +626,7 @@ func reconciliationCoordinatorRecordsTriggerEventForTopologyReason() async {
 }
 
 @Test("ReconciliationCoordinator does not record event for manualRefresh reason")
+@MainActor
 func reconciliationCoordinatorDoesNotRecordEventForManualRefresh() async {
     let diagnostics = SpyDiagnosticsService()
     let coordinator = makeCoordinator(diagnostics: diagnostics)
@@ -617,6 +637,7 @@ func reconciliationCoordinatorDoesNotRecordEventForManualRefresh() async {
 }
 
 @Test("ReconciliationCoordinator records placement failures in diagnostics")
+@MainActor
 func reconciliationCoordinatorRecordsPlacementFailuresInDiagnostics() async {
     let windowID = ManagedWindowID("w-fail")
     let intent = makeTestIntent(id: "w-fail")
@@ -636,6 +657,7 @@ func reconciliationCoordinatorRecordsPlacementFailuresInDiagnostics() async {
 }
 
 @Test("ReconciliationCoordinator records resistedByApp failure in diagnostics")
+@MainActor
 func reconciliationCoordinatorRecordsResistedByAppFailure() async {
     let windowID = ManagedWindowID("w-resist")
     let intent = makeTestIntent(id: "w-resist")
@@ -655,6 +677,7 @@ func reconciliationCoordinatorRecordsResistedByAppFailure() async {
 }
 
 @Test("ReconciliationCoordinator does not record success results as failures")
+@MainActor
 func reconciliationCoordinatorDoesNotRecordSuccessAsFailure() async {
     let intent = makeTestIntent(id: "w-ok")
     let executionReport = PlacementExecutionReport(
@@ -673,6 +696,7 @@ func reconciliationCoordinatorDoesNotRecordSuccessAsFailure() async {
 }
 
 @Test("ReconciliationCoordinator result reason matches input reason")
+@MainActor
 func reconciliationCoordinatorResultReasonMatchesInput() async {
     let coordinator = makeCoordinator()
 
@@ -686,6 +710,7 @@ func reconciliationCoordinatorResultReasonMatchesInput() async {
 }
 
 @Test("ReconciliationCoordinator empty plan path executes engine with empty plan")
+@MainActor
 func reconciliationCoordinatorEmptyPlanPathExecutesEngineWithEmptyPlan() async {
     let planner = SpyProjectionPlanner()
     planner.stubbedPlan = .empty
@@ -721,6 +746,7 @@ func displayTopologyProviderStubReturnsConfiguredTopology() {
 // MARK: - Startup and manual-refresh trigger tests
 
 @Test("Startup trigger with stub planner produces zero intents and completes safely")
+@MainActor
 func startupTriggerWithStubPlannerCompletesSafely() async {
     // Mirrors the production bootstrap composition: stub planner returns empty plan.
     let inventory = FakeWindowInventoryService(snapshots: [])
@@ -751,6 +777,7 @@ func startupTriggerWithStubPlannerCompletesSafely() async {
 }
 
 @Test("Manual refresh trigger with stub planner produces zero intents and completes safely")
+@MainActor
 func manualRefreshTriggerWithStubPlannerCompletesSafely() async {
     // Mirrors the Refresh menu-item trigger path.
     let inventory = FakeWindowInventoryService(snapshots: [])
@@ -780,6 +807,7 @@ func manualRefreshTriggerWithStubPlannerCompletesSafely() async {
 }
 
 @Test("Startup trigger refreshes inventory exactly once")
+@MainActor
 func startupTriggerRefreshesInventoryExactlyOnce() async {
     let inventory = FakeWindowInventoryService(snapshots: [])
     let coordinator = makeCoordinator(inventory: inventory)
@@ -790,6 +818,7 @@ func startupTriggerRefreshesInventoryExactlyOnce() async {
 }
 
 @Test("Manual refresh trigger refreshes inventory exactly once")
+@MainActor
 func manualRefreshTriggerRefreshesInventoryExactlyOnce() async {
     let inventory = FakeWindowInventoryService(snapshots: [])
     let coordinator = makeCoordinator(inventory: inventory)

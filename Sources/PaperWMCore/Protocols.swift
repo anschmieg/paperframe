@@ -34,6 +34,7 @@ public protocol PermissionsServiceProtocol: AnyObject {
 ///
 /// Acts as the bridge between the live AX world and the domain runtime.
 /// Must probe capabilities before returning any snapshot.
+@MainActor
 public protocol WindowInventoryServiceProtocol: AnyObject {
     /// The most recent set of window snapshots.
     var snapshots: [ManagedWindowSnapshot] { get }
@@ -94,6 +95,7 @@ public protocol WindowMutatorProtocol: AnyObject {
 /// Applies a `PlacementPlan` to real windows using transactional AX writes.
 ///
 /// Each intent follows: read → compute delta → write → verify → degrade if needed.
+@MainActor
 public protocol PlacementTransactionEngineProtocol: AnyObject {
     /// Executes all intents in the plan and returns a summary report.
     func execute(plan: PlacementPlan) async -> PlacementExecutionReport

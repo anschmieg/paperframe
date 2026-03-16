@@ -298,12 +298,14 @@ func axAdapterInitDoesNotCrash() {
 // MARK: - WindowInventoryService tests
 
 @Test("WindowInventoryService init does not crash")
+@MainActor
 func windowInventoryServiceInitDoesNotCrash() {
     let permissions = PermissionsServiceStub()
     _ = WindowInventoryService(permissionsService: permissions)
 }
 
 @Test("WindowInventoryService returns empty snapshots when accessibility denied")
+@MainActor
 func windowInventoryServiceReturnsEmptyWhenAccessibilityDenied() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .denied,
@@ -315,6 +317,7 @@ func windowInventoryServiceReturnsEmptyWhenAccessibilityDenied() async {
 }
 
 @Test("WindowInventoryService snapshots have valid structure when accessible")
+@MainActor
 func windowInventoryServiceSnapshotsHaveValidStructure() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted,
@@ -328,6 +331,7 @@ func windowInventoryServiceSnapshotsHaveValidStructure() async {
 }
 
 @Test("WindowInventoryService snapshot fields are valid")
+@MainActor
 func windowInventoryServiceSnapshotFieldsAreValid() async {
     let permissions = PermissionsServiceStub(initialState: PermissionsState(
         accessibility: .granted,
