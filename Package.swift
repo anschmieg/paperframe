@@ -48,7 +48,10 @@ let package = Package(
                 "PaperWMCore",
                 .product(name: "Testing", package: "swift-testing")
             ],
-            path: "Tests/PaperWMCoreTests"
+            path: "Tests/PaperWMCoreTests",
+            swiftSettings: [
+                .unsafeFlags(["-suppress-warnings"])
+            ]
         ),
         .testTarget(
             name: "PaperWMMacAdaptersTests",
