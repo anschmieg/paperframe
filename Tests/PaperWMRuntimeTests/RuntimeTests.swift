@@ -38,6 +38,7 @@ private final class SpyProjectionPlanner: ProjectionPlannerProtocol {
   var stubbedPlan: PlacementPlan = .empty
   var lastSnapshots: [ManagedWindowSnapshot] = []
   var lastTopology: DisplayTopology = .empty
+  var lastWorldState: (any WorldStateProtocol)?
   var callCount: Int = 0
 
   func computePlan(
@@ -48,6 +49,7 @@ private final class SpyProjectionPlanner: ProjectionPlannerProtocol {
     callCount += 1
     lastSnapshots = snapshots
     lastTopology = topology
+    lastWorldState = worldState
     return stubbedPlan
   }
 }
@@ -184,7 +186,7 @@ private func makeTestIntent(id: String) -> PlacementIntent {
 private func makeCoordinator(
   inventory: FakeWindowInventoryService = FakeWindowInventoryService(),
   topology: DisplayTopologyProviderStub = DisplayTopologyProviderStub(),
-  planner: SpyProjectionPlanner = SpyProjectionPlanner(),
+  planner: any ProjectionPlannerProtocol = SpyProjectionPlanner(),
   engine: SpyPlacementTransactionEngine = SpyPlacementTransactionEngine(),
   worldState: WorldStateStub = WorldStateStub(),
   diagnostics: SpyDiagnosticsService = SpyDiagnosticsService()
@@ -1034,4 +1036,276 @@ func observerHubUpgradesMixedBurstToDisplayTopologyChanged() async {
   #expect(completed)
   #expect(spy.reasons.count == 1)
   #expect(spy.reasons.first == .displayTopologyChanged)
+}
+
+// MARK: - Milestone 10: Viewport-aware reconciliation runtime tests
+
+/// Creates a snapshot with a configurable displayID for multi-display viewport tests.
+private func makeTestSnapshotOnDisplay(id: String, displayID: UInt32) -> ManagedWindowSnapshot {
+  ManagedWindowSnapshot(
+    windowID: ManagedWindowID(id),
+    app: AppDescriptor(bundleID: "com.test.app", displayName: "TestApp", pid: 1234),
+    frameOnDisplay: CoreGraphics.CGRect(x: 100, y: 100, width: 800, height: 600),
+    displayID: DisplayID(displayID),
+    capabilities: WindowCapabilities(canMove: true, canResize: true),
+    eligibility: .eligible
+  )
+}
+
+@Test("ReconciliationCoordinator passes worldState to planner during reconcile")
+@MainActor
+func reconciliationCoordinatorPassesWorldStateToPlannerDuringReconcile() async {
+  let worldState = WorldStateStub()
+  let planner = SpyProjectionPlanner()
+  let coordinator = makeCoordinator(planner: planner, worldState: worldState)
+
+  _ = await coordinator.reconcile(reason: .manualRefresh)
+
+  // The planner must have been called and received the world state instance.
+  #expect(planner.callCount == 1)
+  #expect(planner.lastWorldState != nil)
+}
+
+@Test("ReconciliationCoordinator: in-viewport window produces plan intent through coordinator")
+@MainActor
+func reconciliationViewportStateConsumedDuringReconcile() async {
+  let displayID = DisplayID(1)
+  let worldState = WorldStateStub()
+
+  // Viewport at origin covers paper [0, 1920) × [0, 1080).
+  // w-in has paperRect inside the viewport; w-out is far outside.
+  let viewport = ViewportState(displayID: displayID, origin: .zero, scale: 1.0)
+  worldState.updateWorkspaceState(WorkspaceState(displayID: displayID, viewport: viewport))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-in"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-out"),
+      paperRect: PaperRect(x: 5000, y: 0, width: 800, height: 600)
+    ))
+
+  let display = DisplaySnapshot(
+    displayID: displayID,
+    frame: CoreGraphics.CGRect(x: 0, y: 0, width: 1920, height: 1080),
+    scaleFactor: 1.0
+  )
+  let inventory = FakeWindowInventoryService(snapshots: [
+    makeTestSnapshot(id: "w-in"),
+    makeTestSnapshot(id: "w-out"),
+  ])
+  let topology = DisplayTopologyProviderStub(topology: DisplayTopology(displays: [display]))
+  let engine = SpyPlacementTransactionEngine()
+  let coordinator = ReconciliationCoordinator(
+    inventoryService: inventory,
+    topologyProvider: topology,
+    planner: TilingProjectionPlanner(),
+    engine: engine,
+    worldState: worldState,
+    diagnostics: SpyDiagnosticsService()
+  )
+
+  let result = await coordinator.reconcile(reason: .manualRefresh)
+
+  // Only w-in is inside the viewport — the coordinator should surface exactly 1 intent.
+  #expect(result.planIntentCount == 1)
+  #expect(engine.receivedPlan?.intents.count == 1)
+  #expect(engine.receivedPlan?.intents.first?.windowID == ManagedWindowID("w-in"))
+}
+
+@Test("ReconciliationCoordinator: different viewport offsets produce different plans")
+@MainActor
+func reconciliationDifferentViewportOffsetsProduceDifferentPlans() async {
+  let displayID = DisplayID(1)
+  let worldState = WorldStateStub()
+
+  // w-left at paper x=0 (inside viewport at origin), w-right at paper x=3000 (outside the
+  // 1920-wide viewport at origin, but visible when viewport shifts to x=2500).
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-left"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-right"),
+      paperRect: PaperRect(x: 3000, y: 0, width: 800, height: 600)
+    ))
+
+  let display = DisplaySnapshot(
+    displayID: displayID,
+    frame: CoreGraphics.CGRect(x: 0, y: 0, width: 1920, height: 1080),
+    scaleFactor: 1.0
+  )
+  let snapshots = [makeTestSnapshot(id: "w-left"), makeTestSnapshot(id: "w-right")]
+  let topology = DisplayTopologyProviderStub(topology: DisplayTopology(displays: [display]))
+
+  // First reconcile: viewport at x=0 → only w-left is visible.
+  let engine1 = SpyPlacementTransactionEngine()
+  worldState.updateWorkspaceState(
+    WorkspaceState(
+      displayID: displayID,
+      viewport: ViewportState(displayID: displayID, origin: .zero)
+    ))
+  let coordinator1 = ReconciliationCoordinator(
+    inventoryService: FakeWindowInventoryService(snapshots: snapshots),
+    topologyProvider: topology,
+    planner: TilingProjectionPlanner(),
+    engine: engine1,
+    worldState: worldState,
+    diagnostics: SpyDiagnosticsService()
+  )
+  let result1 = await coordinator1.reconcile(reason: .manualRefresh)
+
+  // Second reconcile: shift viewport to x=2500 → only w-right is visible.
+  let engine2 = SpyPlacementTransactionEngine()
+  worldState.updateWorkspaceState(
+    WorkspaceState(
+      displayID: displayID,
+      viewport: ViewportState(displayID: displayID, origin: PaperPoint(x: 2500, y: 0))
+    ))
+  let coordinator2 = ReconciliationCoordinator(
+    inventoryService: FakeWindowInventoryService(snapshots: snapshots),
+    topologyProvider: topology,
+    planner: TilingProjectionPlanner(),
+    engine: engine2,
+    worldState: worldState,
+    diagnostics: SpyDiagnosticsService()
+  )
+  let result2 = await coordinator2.reconcile(reason: .manualRefresh)
+
+  // The two reconciliations must produce different plans.
+  #expect(result1.planIntentCount == 1)
+  #expect(engine1.receivedPlan?.intents.first?.windowID == ManagedWindowID("w-left"))
+
+  #expect(result2.planIntentCount == 1)
+  #expect(engine2.receivedPlan?.intents.first?.windowID == ManagedWindowID("w-right"))
+}
+
+@Test("ReconciliationCoordinator: per-display viewport behavior preserved through reconciliation")
+@MainActor
+func reconciliationPerDisplayViewportPreservedThroughCoordinator() async {
+  let worldState = WorldStateStub()
+
+  // Display 1: viewport at origin [0, 1920). w-1a inside, w-1b outside.
+  let displayID1 = DisplayID(1)
+  worldState.updateWorkspaceState(
+    WorkspaceState(
+      displayID: displayID1,
+      viewport: ViewportState(displayID: displayID1, origin: .zero, scale: 1.0)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-1a"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-1b"),
+      paperRect: PaperRect(x: 5000, y: 0, width: 800, height: 600)
+    ))
+
+  // Display 2: viewport offset to x=3000, covers [3000, 4920). w-2a outside, w-2b inside.
+  let displayID2 = DisplayID(2)
+  worldState.updateWorkspaceState(
+    WorkspaceState(
+      displayID: displayID2,
+      viewport: ViewportState(displayID: displayID2, origin: PaperPoint(x: 3000, y: 0), scale: 1.0)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-2a"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-2b"),
+      paperRect: PaperRect(x: 3500, y: 0, width: 800, height: 600)
+    ))
+
+  let display1 = DisplaySnapshot(
+    displayID: displayID1,
+    frame: CoreGraphics.CGRect(x: 0, y: 0, width: 1920, height: 1080),
+    scaleFactor: 1.0
+  )
+  let display2 = DisplaySnapshot(
+    displayID: displayID2,
+    frame: CoreGraphics.CGRect(x: 1920, y: 0, width: 1920, height: 1080),
+    scaleFactor: 1.0
+  )
+  let snapshots = [
+    makeTestSnapshotOnDisplay(id: "w-1a", displayID: 1),
+    makeTestSnapshotOnDisplay(id: "w-1b", displayID: 1),
+    makeTestSnapshotOnDisplay(id: "w-2a", displayID: 2),
+    makeTestSnapshotOnDisplay(id: "w-2b", displayID: 2),
+  ]
+  let topology = DisplayTopologyProviderStub(topology: DisplayTopology(displays: [display1, display2]))
+  let engine = SpyPlacementTransactionEngine()
+  let coordinator = ReconciliationCoordinator(
+    inventoryService: FakeWindowInventoryService(snapshots: snapshots),
+    topologyProvider: topology,
+    planner: TilingProjectionPlanner(),
+    engine: engine,
+    worldState: worldState,
+    diagnostics: SpyDiagnosticsService()
+  )
+
+  let result = await coordinator.reconcile(reason: .manualRefresh)
+
+  // Only w-1a (display 1, in viewport) and w-2b (display 2, in viewport) should be projected.
+  #expect(result.planIntentCount == 2)
+  let projectedIDs = Set(engine.receivedPlan?.intents.map { $0.windowID.rawValue } ?? [])
+  #expect(projectedIDs.contains("w-1a"))
+  #expect(projectedIDs.contains("w-2b"))
+  #expect(!projectedIDs.contains("w-1b"))
+  #expect(!projectedIDs.contains("w-2a"))
+}
+
+@Test("ReconciliationCoordinator: all windows out of viewport produces empty plan safely")
+@MainActor
+func reconciliationAllWindowsOutOfViewportProducesEmptyPlan() async {
+  let displayID = DisplayID(1)
+  let worldState = WorldStateStub()
+
+  // Both windows are far outside the viewport at origin [0, 1920).
+  worldState.updateWorkspaceState(
+    WorkspaceState(
+      displayID: displayID,
+      viewport: ViewportState(displayID: displayID, origin: .zero, scale: 1.0)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-far-1"),
+      paperRect: PaperRect(x: 5000, y: 0, width: 800, height: 600)
+    ))
+  worldState.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-far-2"),
+      paperRect: PaperRect(x: 8000, y: 0, width: 800, height: 600)
+    ))
+
+  let display = DisplaySnapshot(
+    displayID: displayID,
+    frame: CoreGraphics.CGRect(x: 0, y: 0, width: 1920, height: 1080),
+    scaleFactor: 1.0
+  )
+  let engine = SpyPlacementTransactionEngine()
+  let coordinator = ReconciliationCoordinator(
+    inventoryService: FakeWindowInventoryService(snapshots: [
+      makeTestSnapshot(id: "w-far-1"),
+      makeTestSnapshot(id: "w-far-2"),
+    ]),
+    topologyProvider: DisplayTopologyProviderStub(topology: DisplayTopology(displays: [display])),
+    planner: TilingProjectionPlanner(),
+    engine: engine,
+    worldState: worldState,
+    diagnostics: SpyDiagnosticsService()
+  )
+
+  let result = await coordinator.reconcile(reason: .manualRefresh)
+
+  #expect(result.planIntentCount == 0)
+  #expect(engine.receivedPlan?.intents.isEmpty == true)
 }
