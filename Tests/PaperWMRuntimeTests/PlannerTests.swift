@@ -416,6 +416,363 @@ func tilingPlannerFramesStayWithinPerDisplayBounds() {
   }
 }
 
+// MARK: - Milestone 9: Viewport projection test helpers
+
+/// Builds a `WorldStateStub` with an active workspace (and optional paper window states)
+/// for `displayID`.
+private func makeWorldStateWithViewport(
+  displayID: DisplayID = DisplayID(1),
+  viewportOrigin: PaperPoint = .zero,
+  viewportScale: Double = 1.0,
+  paperWindows: [(id: String, x: Double, y: Double, width: Double, height: Double)] = []
+) -> WorldStateStub {
+  let ws = WorldStateStub()
+  let viewport = ViewportState(displayID: displayID, origin: viewportOrigin, scale: viewportScale)
+  let workspace = WorkspaceState(
+    displayID: displayID,
+    viewport: viewport,
+    windowIDs: paperWindows.map { ManagedWindowID($0.id) }
+  )
+  ws.updateWorkspaceState(workspace)
+  for pw in paperWindows {
+    let paperState = PaperWindowState(
+      windowID: ManagedWindowID(pw.id),
+      paperRect: PaperRect(x: pw.x, y: pw.y, width: pw.width, height: pw.height)
+    )
+    ws.updatePaperWindowState(paperState)
+  }
+  return ws
+}
+
+// MARK: - Milestone 9: Viewport projection tests
+
+@Test("Viewport planner: in-viewport window is projected")
+func viewportWindowInViewportIsProjected() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // Viewport at origin covers paper [0, 1920) × [0, 1080). Window is fully inside.
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [("w-1", 0, 0, 800, 600)]
+  )
+  let plan = planner.computePlan(
+    snapshots: [makeEligibleSnapshot(id: "w-1")],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.count == 1)
+  #expect(plan.intents[0].windowID == ManagedWindowID("w-1"))
+}
+
+@Test("Viewport planner: out-of-viewport window is excluded")
+func viewportWindowOutOfViewportIsExcluded() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // Window paper rect at x=5000 — well outside viewport [0, 1920).
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [("w-1", 5000, 0, 800, 600)]
+  )
+  let plan = planner.computePlan(
+    snapshots: [makeEligibleSnapshot(id: "w-1")],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.isEmpty)
+}
+
+@Test("Viewport planner: partial overlap is included")
+func viewportWindowPartialOverlapIsIncluded() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // Window starts at x=1800, width=500 → spans [1800, 2300). Viewport covers [0, 1920). Overlap.
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [("w-1", 1800, 0, 500, 600)]
+  )
+  let plan = planner.computePlan(
+    snapshots: [makeEligibleSnapshot(id: "w-1")],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.count == 1)
+  #expect(plan.intents[0].windowID == ManagedWindowID("w-1"))
+}
+
+@Test("Viewport planner: no workspace falls back to tiling all windows")
+func viewportNoWorkspaceFallsBackToTilingAll() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // Empty world state — no workspace configured for any display.
+  let plan = planner.computePlan(
+    snapshots: [makeEligibleSnapshot(id: "w-1"), makeEligibleSnapshot(id: "w-2")],
+    topology: topology,
+    worldState: WorldStateStub()
+  )
+  #expect(plan.intents.count == 2)
+}
+
+@Test("Viewport planner: window without paper state is included in viewport mode")
+func viewportWindowWithoutPaperStateIncluded() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // Workspace exists but w-1 has no registered PaperWindowState.
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: []
+  )
+  let plan = planner.computePlan(
+    snapshots: [makeEligibleSnapshot(id: "w-1")],
+    topology: topology,
+    worldState: worldState
+  )
+  // Window with no paper state is included by default.
+  #expect(plan.intents.count == 1)
+  #expect(plan.intents[0].windowID == ManagedWindowID("w-1"))
+}
+
+@Test("Viewport planner: viewport offset scrolls which windows are visible")
+func viewportOffsetScrollsVisibleWindows() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // Viewport offset to paper x=2000 → visible range [2000, 3920).
+  // w-left at paper [0, 800): outside. w-right at paper [2500, 3300): inside.
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    viewportOrigin: PaperPoint(x: 2000, y: 0),
+    viewportScale: 1.0,
+    paperWindows: [
+      ("w-left", 0, 0, 800, 600),
+      ("w-right", 2500, 0, 800, 600),
+    ]
+  )
+  let plan = planner.computePlan(
+    snapshots: [
+      makeEligibleSnapshot(id: "w-left"),
+      makeEligibleSnapshot(id: "w-right"),
+    ],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.count == 1)
+  #expect(plan.intents[0].windowID == ManagedWindowID("w-right"))
+}
+
+@Test("Viewport planner: deterministic ordering preserved within viewport")
+func viewportDeterministicOrdering() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  // All three windows are inside the viewport (origin at 0, size 1920×1080).
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [
+      ("w-z", 0, 0, 400, 600),
+      ("w-a", 500, 0, 400, 600),
+      ("w-m", 1000, 0, 400, 600),
+    ]
+  )
+  // Supply snapshots in non-sorted order.
+  let plan = planner.computePlan(
+    snapshots: [
+      makeEligibleSnapshot(id: "w-z"),
+      makeEligibleSnapshot(id: "w-m"),
+      makeEligibleSnapshot(id: "w-a"),
+    ],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.count == 3)
+  // Sorted by windowID: w-a, w-m, w-z.
+  #expect(plan.intents[0].windowID == ManagedWindowID("w-a"))
+  #expect(plan.intents[1].windowID == ManagedWindowID("w-m"))
+  #expect(plan.intents[2].windowID == ManagedWindowID("w-z"))
+}
+
+@Test("Viewport planner: per-display viewports are independent")
+func viewportPerDisplayIndependent() {
+  let planner = TilingProjectionPlanner()
+  let display1 = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let display2 = makeDisplay(id: 2, frame: CGRect(x: 1920, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display1, display2])
+
+  let ws = WorldStateStub()
+
+  // Display 1: viewport at origin [0, 1920). w-1 in, w-2 out.
+  let vp1 = ViewportState(displayID: DisplayID(1), origin: .zero, scale: 1.0)
+  ws.updateWorkspaceState(WorkspaceState(displayID: DisplayID(1), viewport: vp1))
+  ws.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-1"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  ws.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-2"),
+      paperRect: PaperRect(x: 5000, y: 0, width: 800, height: 600)
+    ))
+
+  // Display 2: viewport offset to x=3000, covers [3000, 4920). w-3 out, w-4 in.
+  let vp2 = ViewportState(
+    displayID: DisplayID(2), origin: PaperPoint(x: 3000, y: 0), scale: 1.0)
+  ws.updateWorkspaceState(WorkspaceState(displayID: DisplayID(2), viewport: vp2))
+  ws.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-3"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  ws.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-4"),
+      paperRect: PaperRect(x: 3500, y: 0, width: 800, height: 600)
+    ))
+
+  let plan = planner.computePlan(
+    snapshots: [
+      makeEligibleSnapshot(id: "w-1", displayID: 1),
+      makeEligibleSnapshot(id: "w-2", displayID: 1),
+      makeEligibleSnapshot(id: "w-3", displayID: 2),
+      makeEligibleSnapshot(id: "w-4", displayID: 2),
+    ],
+    topology: topology,
+    worldState: ws
+  )
+  // Only w-1 (display 1, in viewport) and w-4 (display 2, in viewport) are projected.
+  #expect(plan.intents.count == 2)
+  let projectedIDs = Set(plan.intents.map { $0.windowID.rawValue })
+  #expect(projectedIDs.contains("w-1"))
+  #expect(projectedIDs.contains("w-4"))
+}
+
+@Test("Viewport planner: all windows out of viewport returns empty plan")
+func viewportAllWindowsOutReturnsEmpty() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [
+      ("w-1", 5000, 0, 800, 600),
+      ("w-2", 6000, 0, 800, 600),
+    ]
+  )
+  let plan = planner.computePlan(
+    snapshots: [
+      makeEligibleSnapshot(id: "w-1"),
+      makeEligibleSnapshot(id: "w-2"),
+    ],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.isEmpty)
+}
+
+@Test("Viewport planner: frames stay within display bounds after filtering")
+func viewportFilteredFramesStayInDisplayBounds() {
+  let planner = TilingProjectionPlanner()
+  let displayFrame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+  let display = makeDisplay(id: 1, frame: displayFrame)
+  let topology = DisplayTopology(displays: [display])
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [
+      ("w-a", 0, 0, 400, 600),
+      ("w-b", 500, 0, 400, 600),
+    ]
+  )
+  let plan = planner.computePlan(
+    snapshots: [
+      makeEligibleSnapshot(id: "w-a"),
+      makeEligibleSnapshot(id: "w-b"),
+    ],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.count == 2)
+  for intent in plan.intents {
+    #expect(intent.targetFrame.minX >= displayFrame.minX)
+    #expect(intent.targetFrame.minY >= displayFrame.minY)
+    #expect(intent.targetFrame.maxX <= displayFrame.maxX)
+    #expect(intent.targetFrame.maxY <= displayFrame.maxY)
+  }
+}
+
+@Test("Viewport planner: world-state viewport update changes planning output")
+func viewportWorldStateUpdateChangesPlanOutput() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+
+  let ws = WorldStateStub()
+  ws.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-1"),
+      paperRect: PaperRect(x: 0, y: 0, width: 800, height: 600)
+    ))
+  ws.updatePaperWindowState(
+    PaperWindowState(
+      windowID: ManagedWindowID("w-2"),
+      paperRect: PaperRect(x: 3000, y: 0, width: 800, height: 600)
+    ))
+
+  let snapshots = [
+    makeEligibleSnapshot(id: "w-1"),
+    makeEligibleSnapshot(id: "w-2"),
+  ]
+
+  // Viewport at x=0 — viewport covers [0, 1920). Only w-1 is in range.
+  ws.updateWorkspaceState(
+    WorkspaceState(
+      displayID: DisplayID(1),
+      viewport: ViewportState(displayID: DisplayID(1), origin: PaperPoint(x: 0, y: 0))
+    ))
+  let plan1 = planner.computePlan(snapshots: snapshots, topology: topology, worldState: ws)
+  #expect(plan1.intents.count == 1)
+  #expect(plan1.intents[0].windowID == ManagedWindowID("w-1"))
+
+  // Shift viewport to x=2500 — viewport covers [2500, 4420). Only w-2 is in range.
+  ws.updateWorkspaceState(
+    WorkspaceState(
+      displayID: DisplayID(1),
+      viewport: ViewportState(displayID: DisplayID(1), origin: PaperPoint(x: 2500, y: 0))
+    ))
+  let plan2 = planner.computePlan(snapshots: snapshots, topology: topology, worldState: ws)
+  #expect(plan2.intents.count == 1)
+  #expect(plan2.intents[0].windowID == ManagedWindowID("w-2"))
+}
+
+@Test("Viewport planner: ineligible windows are excluded even when inside viewport")
+func viewportIneligibleWindowsExcluded() {
+  let planner = TilingProjectionPlanner()
+  let display = makeDisplay(id: 1, frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+  let topology = DisplayTopology(displays: [display])
+  let worldState = makeWorldStateWithViewport(
+    displayID: DisplayID(1),
+    paperWindows: [
+      ("w-eligible", 0, 0, 800, 600),
+      ("w-ineligible", 0, 0, 800, 600),
+    ]
+  )
+  let plan = planner.computePlan(
+    snapshots: [
+      makeEligibleSnapshot(id: "w-eligible"),
+      makeIneligibleSnapshot(id: "w-ineligible"),
+    ],
+    topology: topology,
+    worldState: worldState
+  )
+  #expect(plan.intents.count == 1)
+  #expect(plan.intents[0].windowID == ManagedWindowID("w-eligible"))
+}
+
+// MARK: - TilingProjectionPlanner: visible frame per display (existing)
+
 @Test("TilingProjectionPlanner uses visible frame per display when available")
 func tilingPlannerUsesVisibleFramePerDisplay() {
   let planner = TilingProjectionPlanner()
