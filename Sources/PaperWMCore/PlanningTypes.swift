@@ -157,6 +157,8 @@ public enum WMCommand: Sendable, Equatable {
   case cycleWindows(direction: Direction)
   case toggleFullscreen(ManagedWindowID)
   case refreshInventory
+  /// Switches the active paper workspace for the given display.
+  case switchWorkspace(displayID: DisplayID, to: WorkspaceID)
 }
 
 /// Cardinal direction used in movement and focus commands.
@@ -222,6 +224,8 @@ extension WMCommand {
       return l == r
     case (.refreshInventory, .refreshInventory):
       return true
+    case (.switchWorkspace(let ld, let lw), .switchWorkspace(let rd, let rw)):
+      return ld == rd && lw == rw
     default:
       return false
     }

@@ -59,6 +59,13 @@ public protocol WorldStateProtocol: AnyObject {
     func activeWorkspace(for displayID: DisplayID) -> WorkspaceState?
     /// Updates the workspace state for a display.
     func updateWorkspaceState(_ state: WorkspaceState)
+
+    /// Switches the active workspace for `displayID` to the workspace identified by `workspaceID`.
+    ///
+    /// The workspace must already be registered via `updateWorkspaceState(_:)`.
+    /// - Returns: `true` when the switch succeeded; `false` when the workspace is unknown (no-op).
+    @discardableResult
+    func setActiveWorkspace(_ workspaceID: WorkspaceID, for displayID: DisplayID) -> Bool
 }
 
 // MARK: - ProjectionPlanner
