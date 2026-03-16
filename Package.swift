@@ -10,14 +10,6 @@ let package = Package(
         .library(name: "PaperWMMacAdapters", targets: ["PaperWMMacAdapters"]),
         .library(name: "PaperWMRuntime", targets: ["PaperWMRuntime"]),
     ],
-    dependencies: [
-        // NOTE: This explicit dependency is required for CLT-only (Command Line Tools)
-        // local development. While Swift 6+ includes swift-testing in the full Xcode
-        // toolchain, the CLT-only environment needs the explicit package dependency.
-        // The deprecation warnings about "Swift Testing is now included in the
-        // Swift 6 toolchain" can be safely ignored in this configuration.
-        .package(url: "https://github.com/swiftlang/swift-testing.git", from: "0.9.0")
-    ],
     targets: [
         .target(
             name: "PaperWMCore",
@@ -45,8 +37,7 @@ let package = Package(
         .testTarget(
             name: "PaperWMCoreTests",
             dependencies: [
-                "PaperWMCore",
-                .product(name: "Testing", package: "swift-testing")
+                "PaperWMCore"
             ],
             path: "Tests/PaperWMCoreTests",
             swiftSettings: [
@@ -57,8 +48,7 @@ let package = Package(
             name: "PaperWMMacAdaptersTests",
             dependencies: [
                 "PaperWMMacAdapters",
-                "PaperWMCore",
-                .product(name: "Testing", package: "swift-testing")
+                "PaperWMCore"
             ],
             path: "Tests/PaperWMMacAdaptersTests"
         ),
@@ -66,8 +56,7 @@ let package = Package(
             name: "PaperWMRuntimeTests",
             dependencies: [
                 "PaperWMRuntime",
-                "PaperWMCore",
-                .product(name: "Testing", package: "swift-testing")
+                "PaperWMCore"
             ],
             path: "Tests/PaperWMRuntimeTests"
         ),
