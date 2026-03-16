@@ -2,14 +2,16 @@ import CoreGraphics
 import Foundation
 import PaperWMCore
 
-/// A concrete `ProjectionPlanner` that tiles eligible windows horizontally across
-/// the primary display (or the first available display when no primary is known).
+/// A concrete `ProjectionPlanner` that tiles eligible windows horizontally,
+/// independently per display.
 ///
 /// Strategy:
 /// - Only windows marked `.eligible` with `canMove` and `canResize` are planned.
-/// - Windows are sorted by their `windowID` raw value for deterministic ordering.
-/// - A single display is chosen: the primary display, or the lowest-ID display.
-/// - The display's `visibleFrame` (falling back to `frame`) defines the usable area.
+/// - Windows are grouped by their current `displayID`.
+/// - Within each group, windows are sorted by `windowID` raw value for deterministic ordering.
+/// - Display groups are processed in ascending `displayID` order for determinism.
+/// - Each group uses the matching `DisplaySnapshot`'s `visibleFrame` (falling back to `frame`)
+///   as the usable area. When no matching snapshot exists, the lowest-ID display is used.
 /// - Windows are divided into equal-width columns within the usable area.
 /// - All generated frames stay within the chosen display's usable region.
 public final class TilingProjectionPlanner: ProjectionPlannerProtocol {
@@ -27,40 +29,53 @@ public final class TilingProjectionPlanner: ProjectionPlannerProtocol {
     guard !eligible.isEmpty else { return .empty }
     guard !topology.displays.isEmpty else { return .empty }
 
-    // 2. Choose a display deterministically.
-    let display = chooseDisplay(from: topology)
+    // 2. Group eligible windows by their current displayID.
+    var groups: [DisplayID: [ManagedWindowSnapshot]] = [:]
+    for snapshot in eligible {
+      groups[snapshot.displayID, default: []].append(snapshot)
+    }
 
-    // 3. Sort windows by windowID for stable, deterministic ordering.
-    let sorted = eligible.sorted { $0.windowID.rawValue < $1.windowID.rawValue }
+    // 3. Process groups in deterministic (ascending displayID) order.
+    let sortedGroupKeys = groups.keys.sorted { $0.rawValue < $1.rawValue }
 
-    // 4. Compute the usable area for tiling.
-    let usable = display.visibleFrame ?? display.frame
-
-    guard usable.width > 0, usable.height > 0 else { return .empty }
-
-    // 5. Tile horizontally: divide the usable width into equal columns.
-    let count = CGFloat(sorted.count)
-    let tileWidth = (usable.width / count).rounded(.down)
-
+    // 4. Tile each group within its display.
     var intents: [PlacementIntent] = []
-    for (index, snapshot) in sorted.enumerated() {
-      let x = usable.minX + CGFloat(index) * tileWidth
-      // Last window takes the remaining width to absorb any rounding remainder.
-      let width =
-        index == sorted.count - 1 ? (usable.maxX - x) : tileWidth
-      let frame = CGRect(
-        x: x,
-        y: usable.minY,
-        width: max(width, 1),
-        height: usable.height
-      )
-      intents.append(
-        PlacementIntent(
-          windowID: snapshot.windowID,
-          targetFrame: frame,
-          targetDisplayID: display.displayID
+    for groupDisplayID in sortedGroupKeys {
+      let windows = groups[groupDisplayID]!.sorted {
+        $0.windowID.rawValue < $1.windowID.rawValue
+      }
+
+      // Resolve the display snapshot for this group, falling back to the lowest-ID display.
+      let display =
+        topology.snapshot(for: groupDisplayID) ?? topology.displays.min(by: {
+          $0.displayID.rawValue < $1.displayID.rawValue
+        })!
+
+      let usable = display.visibleFrame ?? display.frame
+      guard usable.width > 0, usable.height > 0 else { continue }
+
+      // Tile horizontally: divide the usable width into equal columns.
+      let count = CGFloat(windows.count)
+      let tileWidth = (usable.width / count).rounded(.down)
+
+      for (index, snapshot) in windows.enumerated() {
+        let x = usable.minX + CGFloat(index) * tileWidth
+        // Last window takes the remaining width to absorb any rounding remainder.
+        let width = index == windows.count - 1 ? (usable.maxX - x) : tileWidth
+        let frame = CGRect(
+          x: x,
+          y: usable.minY,
+          width: max(width, 1),
+          height: usable.height
         )
-      )
+        intents.append(
+          PlacementIntent(
+            windowID: snapshot.windowID,
+            targetFrame: frame,
+            targetDisplayID: display.displayID
+          )
+        )
+      }
     }
 
     return PlacementPlan(intents: intents)
@@ -72,13 +87,5 @@ public final class TilingProjectionPlanner: ProjectionPlannerProtocol {
   private func isEligible(_ snapshot: ManagedWindowSnapshot) -> Bool {
     guard case .eligible = snapshot.eligibility else { return false }
     return snapshot.capabilities.canMove && snapshot.capabilities.canResize
-  }
-
-  /// Picks the primary display; falls back to the display with the smallest ID.
-  private func chooseDisplay(from topology: DisplayTopology) -> DisplaySnapshot {
-    if let primary = topology.displays.first(where: { $0.isPrimary }) {
-      return primary
-    }
-    return topology.displays.min(by: { $0.displayID.rawValue < $1.displayID.rawValue })!
   }
 }
