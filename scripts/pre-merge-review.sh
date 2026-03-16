@@ -17,7 +17,7 @@ which swift
 swift --version
 
 echo "[2/10] Fail fast on dirty working tree"
-if ! git diff --quiet || ! git diff --cached --quiet; then
+if [[ -n "$(git status --porcelain)" ]]; then
   echo "ABORT -- working tree is dirty. Commit, stash, or discard changes first."
   exit 1
 fi
@@ -32,10 +32,16 @@ git status -sb
 swift test
 
 echo "[5/10] Check out PR branch"
-if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-  git checkout "$BRANCH"
+if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+  if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    git checkout "$BRANCH"
+  else
+    git checkout -b "$BRANCH" "origin/$BRANCH"
+  fi
 else
-  git checkout -b "$BRANCH" "origin/$BRANCH"
+  echo "ABORT -- remote branch origin/$BRANCH does not exist."
+  echo "This usually means the PR was already merged and the branch was deleted."
+  exit 1
 fi
 
 echo "[6/10] Refresh PR branch"
