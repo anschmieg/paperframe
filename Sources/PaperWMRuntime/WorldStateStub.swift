@@ -3,16 +3,31 @@ import PaperWMCore
 
 /// Stub implementation of `WorldStateProtocol`.
 ///
-/// Stores paper-space metadata in memory. In a real implementation this
-/// delegates persistence to `PersistenceStoreProtocol`.
+/// Stores paper-space metadata in memory and, when a persistence store is
+/// supplied, reads the previous state on init and writes through on every
+/// mutation so that workspace configuration survives app restarts.
 ///
 /// Workspaces are stored by their `WorkspaceID`. Each display tracks its
 /// currently-active workspace ID independently, enabling per-display
 /// workspace switching without cross-display interference.
 ///
-/// TODO (Phase 5): Load initial state from `PersistenceStoreProtocol` on init.
-/// TODO (Phase 5): Write through to persistence on every mutation.
+/// ### Restore behaviour
+/// On init, if `persistenceStore` is provided and `load()` returns a non-nil
+/// `PersistedWorldState`, that snapshot is applied in this order:
+/// 1. Paper-window states are inserted into the in-memory map.
+/// 2. All workspace entries are inserted into the workspace registry.
+/// 3. Active workspace IDs are restored per display — but only when the
+///    referenced workspace actually exists in the registry *and* belongs to
+///    that display.  Invalid / missing entries are silently dropped (fail-safe).
+///
+/// ### Write-through behaviour
+/// Every successful mutation calls `persistenceStore?.save(currentSnapshot())`
+/// so the persisted data is always consistent with in-memory state.  Save
+/// failures are silently swallowed to avoid interrupting normal operation; a
+/// future diagnostic layer can hook in here if needed.
 public final class WorldStateStub: WorldStateProtocol {
+
+    // MARK: - Storage
 
     private var paperWindowStates: [ManagedWindowID: PaperWindowState] = [:]
 
@@ -22,7 +37,26 @@ public final class WorldStateStub: WorldStateProtocol {
     /// The active workspace ID for each display.
     private var activeWorkspaceIDs: [DisplayID: WorkspaceID] = [:]
 
-    public init() {}
+    // MARK: - Persistence
+
+    private let persistenceStore: (any WorldStatePersistenceStoreProtocol)?
+
+    // MARK: - Init
+
+    /// Creates a `WorldStateStub`, optionally backed by a persistence store.
+    ///
+    /// When `persistenceStore` is supplied the previously persisted world state
+    /// (if any) is restored immediately during init.
+    ///
+    /// - Parameter persistenceStore: An optional store to use for loading and
+    ///   writing world state.  Pass `nil` (the default) for a purely in-memory,
+    ///   non-persistent instance — as used in most unit tests.
+    public init(persistenceStore: (any WorldStatePersistenceStoreProtocol)? = nil) {
+        self.persistenceStore = persistenceStore
+        if let stored = persistenceStore?.load() {
+            restore(from: stored)
+        }
+    }
 
     // MARK: - WorldStateProtocol
 
@@ -32,6 +66,7 @@ public final class WorldStateStub: WorldStateProtocol {
 
     public func updatePaperWindowState(_ state: PaperWindowState) {
         paperWindowStates[state.windowID] = state
+        persist()
     }
 
     public func activeWorkspace(for displayID: DisplayID) -> WorkspaceState? {
@@ -47,6 +82,7 @@ public final class WorldStateStub: WorldStateProtocol {
     public func updateWorkspaceState(_ state: WorkspaceState) {
         workspaceStorage[state.workspaceID] = state
         activeWorkspaceIDs[state.displayID] = state.workspaceID
+        persist()
     }
 
     /// Switches the active workspace for `displayID` to the workspace identified by `workspaceID`.
@@ -60,11 +96,54 @@ public final class WorldStateStub: WorldStateProtocol {
         guard let workspace = workspaceStorage[workspaceID],
               workspace.displayID == displayID else { return false }
         activeWorkspaceIDs[displayID] = workspaceID
+        persist()
         return true
     }
 
     /// Returns all workspaces registered for `displayID`, in unspecified order.
     public func allWorkspaces(for displayID: DisplayID) -> [WorkspaceState] {
         workspaceStorage.values.filter { $0.displayID == displayID }
+    }
+
+    // MARK: - Private helpers
+
+    /// Restores in-memory state from a previously persisted snapshot.
+    ///
+    /// Active workspace IDs are applied only when the referenced workspace
+    /// exists in the restored registry **and** belongs to the correct display.
+    private func restore(from snapshot: PersistedWorldState) {
+        for windowState in snapshot.paperWindowStates {
+            paperWindowStates[windowState.windowID] = windowState
+        }
+        for workspace in snapshot.workspaces {
+            workspaceStorage[workspace.workspaceID] = workspace
+        }
+        for entry in snapshot.activeWorkspaces {
+            guard
+                let workspace = workspaceStorage[entry.workspaceID],
+                workspace.displayID == entry.displayID
+            else { continue }
+            activeWorkspaceIDs[entry.displayID] = entry.workspaceID
+        }
+    }
+
+    /// Captures the current in-memory state as a `PersistedWorldState` snapshot.
+    private func currentSnapshot() -> PersistedWorldState {
+        let activeEntries = activeWorkspaceIDs.map { displayID, workspaceID in
+            ActiveWorkspaceEntry(displayID: displayID, workspaceID: workspaceID)
+        }
+        return PersistedWorldState(
+            workspaces: Array(workspaceStorage.values),
+            activeWorkspaces: activeEntries,
+            paperWindowStates: Array(paperWindowStates.values)
+        )
+    }
+
+    /// Writes the current snapshot to the persistence store.
+    ///
+    /// Save failures are silently swallowed to keep mutations non-throwing.
+    private func persist() {
+        guard let store = persistenceStore else { return }
+        try? store.save(currentSnapshot())
     }
 }
