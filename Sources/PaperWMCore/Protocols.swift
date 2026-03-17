@@ -82,6 +82,34 @@ public protocol WorldStateProtocol: AnyObject {
     ///   - newLabel: The new display label. Whitespace-only or `nil` clears the
     ///     label so callers fall back to deterministic labeling (e.g. "Workspace N").
     func renameWorkspace(_ workspaceID: WorkspaceID, newLabel: String?)
+
+    /// Creates and registers a new workspace on `displayID`.
+    ///
+    /// A fresh `WorkspaceID` is allocated internally; callers must not supply
+    /// one. The new workspace is registered but does **not** become active — the
+    /// existing active workspace for the display remains unchanged.
+    ///
+    /// - Parameters:
+    ///   - displayID: The display to attach the new workspace to.
+    ///   - label: An optional display label. Whitespace-only or `nil` is
+    ///     normalised to `nil` so the display layer falls back to "Workspace N".
+    /// - Returns: The newly created `WorkspaceState`.
+    @discardableResult
+    func createWorkspace(displayID: DisplayID, label: String?) -> WorkspaceState
+
+    /// Removes the workspace identified by `workspaceID`.
+    ///
+    /// - Removing an unknown workspace is a safe no-op (returns `false`).
+    /// - Removing the final remaining workspace on a display is rejected as a
+    ///   safe no-op (returns `false`).
+    /// - If the removed workspace is not currently active, the active workspace
+    ///   for its display remains unchanged.
+    /// - If the removed workspace is currently active, a deterministic
+    ///   replacement is promoted (lowest UUID string among remaining workspaces).
+    ///
+    /// - Returns: `true` when the workspace was removed; `false` otherwise.
+    @discardableResult
+    func removeWorkspace(_ workspaceID: WorkspaceID) -> Bool
 }
 
 // MARK: - ProjectionPlanner

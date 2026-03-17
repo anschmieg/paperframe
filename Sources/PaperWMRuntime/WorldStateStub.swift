@@ -118,6 +118,55 @@ public final class WorldStateStub: WorldStateProtocol {
         persist()
     }
 
+    /// Creates and registers a new workspace on `displayID`.
+    ///
+    /// The new workspace is registered but does **not** become active; the
+    /// current active workspace for the display (if any) is preserved.
+    /// The label is normalised: whitespace-only or `nil` becomes `nil`.
+    @discardableResult
+    public func createWorkspace(displayID: DisplayID, label: String?) -> WorkspaceState {
+        let trimmed = label?.trimmingCharacters(in: .whitespaces)
+        let normalizedLabel: String? = (trimmed?.isEmpty == false) ? trimmed : nil
+        let newID = WorkspaceID()
+        let state = WorkspaceState(
+            workspaceID: newID,
+            displayID: displayID,
+            viewport: ViewportState(displayID: displayID),
+            label: normalizedLabel
+        )
+        workspaceStorage[newID] = state
+        // Do not change the active workspace; preserve existing active selection.
+        persist()
+        return state
+    }
+
+    /// Removes the workspace identified by `workspaceID`.
+    ///
+    /// - Removing an unknown workspace is a safe no-op.
+    /// - Removing the final remaining workspace on a display is rejected.
+    /// - If the removed workspace is active, the replacement is the remaining
+    ///   workspace with the lexicographically smallest UUID string (deterministic).
+    @discardableResult
+    public func removeWorkspace(_ workspaceID: WorkspaceID) -> Bool {
+        guard let target = workspaceStorage[workspaceID] else { return false }
+        let displayID = target.displayID
+        let remaining = workspaceStorage.values.filter {
+            $0.displayID == displayID && $0.workspaceID != workspaceID
+        }
+        // Reject removal if this is the last workspace on the display.
+        guard !remaining.isEmpty else { return false }
+
+        // Promote a replacement before removing, if needed.
+        if activeWorkspaceIDs[displayID] == workspaceID {
+            let replacement = remaining.min { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }!
+            activeWorkspaceIDs[displayID] = replacement.workspaceID
+        }
+
+        workspaceStorage.removeValue(forKey: workspaceID)
+        persist()
+        return true
+    }
+
     // MARK: - Private helpers
 
     /// Restores in-memory state from a previously persisted snapshot.

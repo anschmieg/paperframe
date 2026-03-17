@@ -111,6 +111,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       action: #selector(renameCurrentWorkspace),
       keyEquivalent: "")
 
+    menu.addItem(
+      withTitle: "New Workspace…",
+      action: #selector(newWorkspace),
+      keyEquivalent: "")
+
+    menu.addItem(
+      withTitle: "Remove Current Workspace",
+      action: #selector(removeCurrentWorkspace),
+      keyEquivalent: "")
+
     // TODO: Add layout commands (move, resize, cycle, etc.)
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
     menu.addItem(.separator())
@@ -202,7 +212,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     commandRouter.route(
       command: .renameWorkspace(workspaceID: current.workspaceID, newLabel: newLabel))
   }
-}
+
+  /// Presents a label-prompt dialog and creates a new workspace on the lowest-ID
+  /// display that has an active workspace, or on the first display if none has one.
+  ///
+  /// Routes the creation through `commandRouter` so the app layer does not
+  /// mutate world state directly.
+  @objc private func newWorkspace() {
+    let topology = displayAdapter.currentTopology()
+    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
+
+    guard let display = displays.first else {
+      let alert = NSAlert()
+      alert.messageText = "No Displays Detected"
+      alert.informativeText = "A workspace cannot be created without a display."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    // Prefer the lowest-ID display that already has workspaces; fall back to first display.
+    let targetDisplay = displays.first(where: { !worldState.allWorkspaces(for: $0.displayID).isEmpty }) ?? display
+
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+    textField.placeholderString = "Workspace name (optional)"
+
+    let alert = NSAlert()
+    alert.messageText = "New Workspace"
+    alert.informativeText = "Enter an optional name for the new workspace."
+    alert.accessoryView = textField
+    alert.addButton(withTitle: "Create")
+    alert.addButton(withTitle: "Cancel")
+
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+    let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
+    let label: String? = trimmed.isEmpty ? nil : trimmed
+    commandRouter.route(command: .createWorkspace(displayID: targetDisplay.displayID, label: label))
+  }
+
+  /// Removes the active workspace on the lowest-ID display that has one.
+  ///
+  /// Shows a confirmation dialog before routing the removal through `commandRouter`.
+  @objc private func removeCurrentWorkspace() {
+    let topology = displayAdapter.currentTopology()
+    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
+
+    guard
+      let display = displays.first(where: { worldState.activeWorkspace(for: $0.displayID) != nil }),
+      let current = worldState.activeWorkspace(for: display.displayID)
+    else {
+      let alert = NSAlert()
+      alert.messageText = "No Active Workspace"
+      alert.informativeText = "There is no active workspace to remove."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    let workspaces = worldState.allWorkspaces(for: display.displayID)
+    if workspaces.count <= 1 {
+      let alert = NSAlert()
+      alert.messageText = "Cannot Remove Workspace"
+      alert.informativeText = "The last remaining workspace on a display cannot be removed."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    let displayLabel: String
+    if let label = current.label, !label.trimmingCharacters(in: .whitespaces).isEmpty {
+      displayLabel = label
+    } else {
+      let sorted = workspaces.sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
+      let idx = sorted.firstIndex(where: { $0.workspaceID == current.workspaceID }) ?? 0
+      displayLabel = "Workspace \(idx + 1)"
+    }
+
+    let confirm = NSAlert()
+    confirm.messageText = "Remove "\(displayLabel)"?"
+    confirm.informativeText = "This workspace will be removed. This action cannot be undone."
+    confirm.addButton(withTitle: "Remove")
+    confirm.addButton(withTitle: "Cancel")
+    guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+    commandRouter.route(command: .removeWorkspace(workspaceID: current.workspaceID))
+  }
 
 // MARK: - WorkspaceSwitchPayload
 

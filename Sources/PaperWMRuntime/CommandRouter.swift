@@ -10,6 +10,8 @@ import PaperWMCore
 /// Currently handled commands:
 /// - `.switchWorkspace(displayID:to:)`  → `WorkspaceSwitchCoordinator`
 /// - `.renameWorkspace(workspaceID:newLabel:)` → `WorldStateProtocol`
+/// - `.createWorkspace(displayID:label:)` → `WorldStateProtocol`
+/// - `.removeWorkspace(workspaceID:)` → `WorldStateProtocol`
 /// - `.refreshInventory`                → `ReconciliationTriggering` (`.manualRefresh`)
 ///
 /// All other commands are no-ops with TODO placeholders until the corresponding
@@ -57,6 +59,12 @@ public final class CommandRouter: CommandRouterProtocol {
 
         case .renameWorkspace(let workspaceID, let newLabel):
             worldState.renameWorkspace(workspaceID, newLabel: newLabel)
+
+        case .createWorkspace(let displayID, let label):
+            worldState.createWorkspace(displayID: displayID, label: label)
+
+        case .removeWorkspace(let workspaceID):
+            worldState.removeWorkspace(workspaceID)
 
         case .refreshInventory:
             await reconciliationCoordinator.reconcile(reason: .manualRefresh)

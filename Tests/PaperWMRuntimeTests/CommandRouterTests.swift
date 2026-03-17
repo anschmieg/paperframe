@@ -384,3 +384,309 @@ func commandRouterRenamePreservesIdentityAndSwitching() async {
     #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws1.workspaceID)
     #expect(worldState.activeWorkspace(for: displayID)?.label == "Renamed")
 }
+
+// MARK: - WMCommand equality: createWorkspace / removeWorkspace
+
+@Test("WMCommand.createWorkspace equality matches same displayID and label")
+func wmCommandCreateWorkspaceEquality() {
+    let d1 = DisplayID(1)
+    let cmd1 = WMCommand.createWorkspace(displayID: d1, label: "Focus")
+    let cmd2 = WMCommand.createWorkspace(displayID: d1, label: "Focus")
+    let cmdDiffLabel = WMCommand.createWorkspace(displayID: d1, label: "Other")
+    let cmdNilLabel = WMCommand.createWorkspace(displayID: d1, label: nil)
+    let cmdDiffDisplay = WMCommand.createWorkspace(displayID: DisplayID(2), label: "Focus")
+
+    #expect(cmd1 == cmd2)
+    #expect(cmd1 != cmdDiffLabel)
+    #expect(cmd1 != cmdNilLabel)
+    #expect(cmd1 != cmdDiffDisplay)
+}
+
+@Test("WMCommand.removeWorkspace equality matches same workspaceID only")
+func wmCommandRemoveWorkspaceEquality() {
+    let id = WorkspaceID()
+    let cmd1 = WMCommand.removeWorkspace(workspaceID: id)
+    let cmd2 = WMCommand.removeWorkspace(workspaceID: id)
+    let cmdDiff = WMCommand.removeWorkspace(workspaceID: WorkspaceID())
+
+    #expect(cmd1 == cmd2)
+    #expect(cmd1 != cmdDiff)
+}
+
+// MARK: - Routing: createWorkspace
+
+@Test("CommandRouter.handle createWorkspace registers workspace on correct display")
+@MainActor
+func commandRouterRoutesCreateWorkspace() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: displayID, label: "New WS"))
+
+    let all = worldState.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.label == "New WS")
+    #expect(all.first?.displayID == displayID)
+    // create must not trigger reconciliation
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle createWorkspace with nil label normalizes to nil")
+@MainActor
+func commandRouterCreateWorkspaceNilLabel() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: displayID, label: nil))
+
+    let all = worldState.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.label == nil)
+}
+
+@Test("CommandRouter.handle createWorkspace with whitespace-only label normalizes to nil")
+@MainActor
+func commandRouterCreateWorkspaceWhitespaceLabelNormalizesToNil() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: displayID, label: "   "))
+
+    let all = worldState.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.label == nil)
+}
+
+@Test("CommandRouter.handle createWorkspace does not change active workspace")
+@MainActor
+func commandRouterCreateWorkspacePreservesActiveWorkspace() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    // Seed an existing active workspace.
+    let existing = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(existing)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: displayID, label: "New"))
+
+    // Active workspace must remain the original one.
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == existing.workspaceID)
+    // But two workspaces are now registered.
+    #expect(worldState.allWorkspaces(for: displayID).count == 2)
+}
+
+@Test("CommandRouter.handle createWorkspace multiple workspaces on same display are independent")
+@MainActor
+func commandRouterCreateMultipleWorkspacesOnDisplay() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: displayID, label: "WS A"))
+    await router.handle(command: .createWorkspace(displayID: displayID, label: "WS B"))
+
+    let all = worldState.allWorkspaces(for: displayID)
+    #expect(all.count == 2)
+    let labels = Set(all.compactMap(\.label))
+    #expect(labels.contains("WS A"))
+    #expect(labels.contains("WS B"))
+}
+
+@Test("CommandRouter.handle createWorkspace persists workspace across sessions")
+@MainActor
+func commandRouterCreateWorkspaceIsPersisted() async {
+    let store = InMemoryWorldStatePersistenceStore()
+    let displayID = DisplayID(1)
+    let worldState = WorldStateStub(persistenceStore: store)
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: displayID, label: "Persisted WS"))
+
+    // Simulate restart.
+    let restored = WorldStateStub(persistenceStore: store)
+    let all = restored.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.label == "Persisted WS")
+}
+
+@Test("CommandRouter.handle createWorkspace per-display independence")
+@MainActor
+func commandRouterCreateWorkspacePerDisplayIndependence() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .createWorkspace(displayID: d1, label: "D1 WS"))
+
+    #expect(worldState.allWorkspaces(for: d1).count == 1)
+    #expect(worldState.allWorkspaces(for: d2).isEmpty)
+}
+
+// MARK: - Routing: removeWorkspace
+
+@Test("CommandRouter.handle removeWorkspace removes workspace from display")
+@MainActor
+func commandRouterRoutesRemoveWorkspace() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2) // ws2 is now active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Remove the non-active workspace.
+    await router.handle(command: .removeWorkspace(workspaceID: ws1.workspaceID))
+
+    let all = worldState.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.workspaceID == ws2.workspaceID)
+    // remove must not trigger reconciliation
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle removeWorkspace unknown workspace is safe no-op")
+@MainActor
+func commandRouterRemoveUnknownWorkspaceIsNoop() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .removeWorkspace(workspaceID: WorkspaceID()))
+
+    // Existing workspace must be unaffected.
+    #expect(worldState.allWorkspaces(for: displayID).count == 1)
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle removeWorkspace non-active workspace preserves active selection")
+@MainActor
+func commandRouterRemoveNonActivePreservesActive() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2) // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Remove ws1 (not active).
+    await router.handle(command: .removeWorkspace(workspaceID: ws1.workspaceID))
+
+    // Active workspace must still be ws2.
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws2.workspaceID)
+}
+
+@Test("CommandRouter.handle removeWorkspace active workspace promotes deterministic replacement")
+@MainActor
+func commandRouterRemoveActiveWorkspacePromotesReplacement() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2) // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Remove ws2 (the active one).
+    await router.handle(command: .removeWorkspace(workspaceID: ws2.workspaceID))
+
+    let newActive = worldState.activeWorkspace(for: displayID)
+    #expect(newActive?.workspaceID == ws1.workspaceID)
+    #expect(worldState.allWorkspaces(for: displayID).count == 1)
+}
+
+@Test("CommandRouter.handle removeWorkspace final remaining workspace is rejected")
+@MainActor
+func commandRouterRemoveFinalWorkspaceIsRejected() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .removeWorkspace(workspaceID: ws.workspaceID))
+
+    // Must be rejected; workspace count remains 1.
+    #expect(worldState.allWorkspaces(for: displayID).count == 1)
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws.workspaceID)
+}
+
+@Test("CommandRouter.handle removeWorkspace persists removal across sessions")
+@MainActor
+func commandRouterRemoveWorkspaceIsPersisted() async {
+    let store = InMemoryWorldStatePersistenceStore()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+
+    let worldState = WorldStateStub(persistenceStore: store)
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(command: .removeWorkspace(workspaceID: ws2.workspaceID))
+
+    // Simulate restart.
+    let restored = WorldStateStub(persistenceStore: store)
+    let all = restored.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.workspaceID == ws1.workspaceID)
+}
+
+@Test("CommandRouter.handle removeWorkspace multiple displays preserve independent sets")
+@MainActor
+func commandRouterRemoveWorkspacePerDisplayIndependence() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+    let ws1a = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    let ws1b = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    let ws2a = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+    worldState.updateWorkspaceState(ws1a)
+    worldState.updateWorkspaceState(ws1b)
+    worldState.updateWorkspaceState(ws2a)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Remove a workspace from d1; d2 must be unaffected.
+    await router.handle(command: .removeWorkspace(workspaceID: ws1a.workspaceID))
+
+    #expect(worldState.allWorkspaces(for: d1).count == 1)
+    #expect(worldState.allWorkspaces(for: d2).count == 1)
+    #expect(worldState.activeWorkspace(for: d2)?.workspaceID == ws2a.workspaceID)
+}

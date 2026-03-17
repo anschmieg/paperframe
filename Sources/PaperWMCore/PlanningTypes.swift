@@ -166,6 +166,18 @@ public enum WMCommand: Sendable, Equatable {
   ///   - newLabel: The new display label. Pass `nil` or a whitespace-only
   ///     string to clear the label and restore deterministic fallback labeling.
   case renameWorkspace(workspaceID: WorkspaceID, newLabel: String?)
+  /// Creates a new workspace on the given display.
+  ///
+  /// - Parameters:
+  ///   - displayID: The display on which to register the new workspace.
+  ///   - label: An optional display label. `nil` or whitespace-only strings
+  ///     normalize to `nil` so the display layer falls back to "Workspace N".
+  case createWorkspace(displayID: DisplayID, label: String?)
+  /// Removes the workspace identified by `workspaceID`.
+  ///
+  /// Removing the final remaining workspace on a display is a safe no-op.
+  /// Removing an unknown workspace is a safe no-op.
+  case removeWorkspace(workspaceID: WorkspaceID)
 }
 
 /// Cardinal direction used in movement and focus commands.
@@ -235,6 +247,10 @@ extension WMCommand {
       return ld == rd && lw == rw
     case (.renameWorkspace(let lw, let ll), .renameWorkspace(let rw, let rl)):
       return lw == rw && ll == rl
+    case (.createWorkspace(let ld, let ll), .createWorkspace(let rd, let rl)):
+      return ld == rd && ll == rl
+    case (.removeWorkspace(let lw), .removeWorkspace(let rw)):
+      return lw == rw
     default:
       return false
     }
