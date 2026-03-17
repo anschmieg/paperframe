@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     reconciliationCoordinator: coordinator
   )
   private lazy var commandRouter = CommandRouter(
+    worldState: worldState,
     workspaceSwitchCoordinator: workspaceSwitchCoordinator,
     reconciliationCoordinator: coordinator
   )
@@ -105,6 +106,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     workspaceSubmenu.delegate = self
     menu.addItem(workspaceMenuItem)
 
+    menu.addItem(
+      withTitle: "Rename Current Workspace…",
+      action: #selector(renameCurrentWorkspace),
+      keyEquivalent: "")
+
     // TODO: Add layout commands (move, resize, cycle, etc.)
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
     menu.addItem(.separator())
@@ -153,6 +159,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard let payload = sender.representedObject as? WorkspaceSwitchPayload else { return }
     commandRouter.route(
       command: .switchWorkspace(displayID: payload.displayID, to: payload.workspaceID))
+  }
+
+  /// Presents a rename dialog for the active workspace on the lowest-ID display.
+  ///
+  /// Finds the first display sorted by display ID that has an active workspace,
+  /// pre-fills the current label, and routes the result through `commandRouter`
+  /// so the rename goes through the standard runtime path rather than mutating
+  /// world state directly from the app layer.
+  @objc private func renameCurrentWorkspace() {
+    let topology = displayAdapter.currentTopology()
+    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
+
+    // Find the first (lowest-ID) display that has an active workspace.
+    guard
+      let display = displays.first(where: { worldState.activeWorkspace(for: $0.displayID) != nil }),
+      let current = worldState.activeWorkspace(for: display.displayID)
+    else {
+      let alert = NSAlert()
+      alert.messageText = "No Active Workspace"
+      alert.informativeText = "There is no active workspace to rename."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+    textField.stringValue = current.label ?? ""
+    textField.placeholderString = "Workspace name"
+
+    let alert = NSAlert()
+    alert.messageText = "Rename Workspace"
+    alert.informativeText = "Enter a new name for the current workspace."
+    alert.accessoryView = textField
+    alert.addButton(withTitle: "Rename")
+    alert.addButton(withTitle: "Cancel")
+
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+    let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
+    let newLabel: String? = trimmed.isEmpty ? nil : trimmed
+    commandRouter.route(
+      command: .renameWorkspace(workspaceID: current.workspaceID, newLabel: newLabel))
   }
 }
 

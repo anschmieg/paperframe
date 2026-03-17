@@ -159,6 +159,13 @@ public enum WMCommand: Sendable, Equatable {
   case refreshInventory
   /// Switches the active paper workspace for the given display.
   case switchWorkspace(displayID: DisplayID, to: WorkspaceID)
+  /// Renames the workspace identified by `workspaceID`.
+  ///
+  /// - Parameters:
+  ///   - workspaceID: The target workspace. Unknown IDs are ignored.
+  ///   - newLabel: The new display label. Pass `nil` or a whitespace-only
+  ///     string to clear the label and restore deterministic fallback labeling.
+  case renameWorkspace(workspaceID: WorkspaceID, newLabel: String?)
 }
 
 /// Cardinal direction used in movement and focus commands.
@@ -226,6 +233,8 @@ extension WMCommand {
       return true
     case (.switchWorkspace(let ld, let lw), .switchWorkspace(let rd, let rw)):
       return ld == rd && lw == rw
+    case (.renameWorkspace(let lw, let ll), .renameWorkspace(let rw, let rl)):
+      return lw == rw && ll == rl
     default:
       return false
     }

@@ -40,6 +40,7 @@ private func makeRouter(
     let switcher = WorkspaceSwitchCoordinator(
         worldState: worldState, reconciliationCoordinator: spy)
     return CommandRouter(
+        worldState: worldState,
         workspaceSwitchCoordinator: switcher,
         reconciliationCoordinator: spy)
 }
@@ -217,4 +218,169 @@ func commandRouterNoWorkspacesIsSafe() async {
 
     #expect(spy.reasons.isEmpty)
     #expect(worldState.activeWorkspace(for: displayID) == nil)
+}
+
+// MARK: - Routing: renameWorkspace
+
+@Test("WMCommand.renameWorkspace equality matches same ID and label")
+func wmCommandRenameWorkspaceEquality() {
+    let id = WorkspaceID()
+    let cmd1 = WMCommand.renameWorkspace(workspaceID: id, newLabel: "My WS")
+    let cmd2 = WMCommand.renameWorkspace(workspaceID: id, newLabel: "My WS")
+    let cmdDiffLabel = WMCommand.renameWorkspace(workspaceID: id, newLabel: "Other")
+    let cmdDiffID = WMCommand.renameWorkspace(workspaceID: WorkspaceID(), newLabel: "My WS")
+    let cmdNilLabel = WMCommand.renameWorkspace(workspaceID: id, newLabel: nil)
+
+    #expect(cmd1 == cmd2)
+    #expect(cmd1 != cmdDiffLabel)
+    #expect(cmd1 != cmdDiffID)
+    #expect(cmd1 != cmdNilLabel)
+}
+
+@Test("CommandRouter.handle renameWorkspace updates the workspace label")
+@MainActor
+func commandRouterRoutesRenameWorkspace() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let ws = crWorkspace()
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws.workspaceID, newLabel: "Focus Time"))
+
+    #expect(worldState.activeWorkspace(for: displayID)?.label == "Focus Time")
+    // Rename must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle renameWorkspace unknown workspace is safe no-op")
+@MainActor
+func commandRouterRenameUnknownWorkspaceIsNoop() async {
+    let worldState = WorldStateStub()
+    let unknownID = WorkspaceID()
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Must not crash, mutate anything, or trigger reconciliation.
+    await router.handle(command: .renameWorkspace(workspaceID: unknownID, newLabel: "Ghost"))
+
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle renameWorkspace with whitespace-only label clears the label")
+@MainActor
+func commandRouterRenameWhitespaceOnlyClearsLabel() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    var ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    ws.label = "Old Name"
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws.workspaceID, newLabel: "   "))
+
+    #expect(worldState.activeWorkspace(for: displayID)?.label == nil)
+}
+
+@Test("CommandRouter.handle renameWorkspace with nil label clears the label")
+@MainActor
+func commandRouterRenameNilLabelClears() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    var ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    ws.label = "Old Name"
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws.workspaceID, newLabel: nil))
+
+    #expect(worldState.activeWorkspace(for: displayID)?.label == nil)
+}
+
+@Test("CommandRouter.handle renameWorkspace persists the new label across sessions")
+@MainActor
+func commandRouterRenameIsPersisted() async {
+    let store = InMemoryWorldStatePersistenceStore()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+
+    let worldState = WorldStateStub(persistenceStore: store)
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws.workspaceID, newLabel: "Persisted"))
+
+    // Simulate restart: new WorldStateStub restores from same store.
+    let restored = WorldStateStub(persistenceStore: store)
+    #expect(restored.activeWorkspace(for: displayID)?.label == "Persisted")
+}
+
+@Test("CommandRouter.handle renameWorkspace preserves independence across displays")
+@MainActor
+func commandRouterRenameIsDisplayIndependent() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    let ws1 = crWorkspace(displayID: 1)
+    let ws2 = crWorkspace(displayID: 2)
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Rename only the workspace on display 1.
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws1.workspaceID, newLabel: "Display One"))
+
+    #expect(worldState.activeWorkspace(for: d1)?.label == "Display One")
+    // Workspace on display 2 must be unaffected.
+    #expect(worldState.activeWorkspace(for: d2)?.label == nil)
+}
+
+@Test("CommandRouter.handle renameWorkspace does not affect workspace identity or switching")
+@MainActor
+func commandRouterRenamePreservesIdentityAndSwitching() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let ws1 = crWorkspace()
+    let ws2 = crWorkspace()
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)  // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Rename ws1 (currently inactive).
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws1.workspaceID, newLabel: "Renamed"))
+
+    // Active workspace must still be ws2.
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws2.workspaceID)
+    // ws1 should be reachable and labelled.
+    let all = worldState.allWorkspaces(for: displayID)
+    let renamed = all.first { $0.workspaceID == ws1.workspaceID }
+    #expect(renamed?.label == "Renamed")
+
+    // Switching to ws1 after rename must still work.
+    await router.handle(command: .switchWorkspace(displayID: displayID, to: ws1.workspaceID))
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws1.workspaceID)
+    #expect(worldState.activeWorkspace(for: displayID)?.label == "Renamed")
 }

@@ -105,6 +105,19 @@ public final class WorldStateStub: WorldStateProtocol {
         workspaceStorage.values.filter { $0.displayID == displayID }
     }
 
+    /// Renames the workspace identified by `workspaceID`.
+    ///
+    /// Normalises the label: whitespace-only strings are treated as `nil` so that
+    /// display-layer fallback labelling ("Workspace N") remains deterministic.
+    /// Renaming an unknown workspace is a safe no-op; workspace identity, active
+    /// workspace tracking, display ownership, and viewport state are unaffected.
+    public func renameWorkspace(_ workspaceID: WorkspaceID, newLabel: String?) {
+        guard workspaceStorage[workspaceID] != nil else { return }
+        let trimmed = newLabel?.trimmingCharacters(in: .whitespaces)
+        workspaceStorage[workspaceID]?.label = (trimmed?.isEmpty == false) ? trimmed : nil
+        persist()
+    }
+
     // MARK: - Private helpers
 
     /// Restores in-memory state from a previously persisted snapshot.

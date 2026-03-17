@@ -71,6 +71,17 @@ public protocol WorldStateProtocol: AnyObject {
 
     /// Returns all workspaces registered for `displayID`, in unspecified order.
     func allWorkspaces(for displayID: DisplayID) -> [WorkspaceState]
+
+    /// Renames the workspace identified by `workspaceID`.
+    ///
+    /// Labels are presentation-only and do not affect workspace identity,
+    /// active workspace tracking, display ownership, or viewport state.
+    ///
+    /// - Parameters:
+    ///   - workspaceID: The workspace to rename. Unknown IDs are silently ignored.
+    ///   - newLabel: The new display label. Whitespace-only or `nil` clears the
+    ///     label so callers fall back to deterministic labeling (e.g. "Workspace N").
+    func renameWorkspace(_ workspaceID: WorkspaceID, newLabel: String?)
 }
 
 // MARK: - ProjectionPlanner

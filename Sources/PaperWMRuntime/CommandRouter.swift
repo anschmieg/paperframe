@@ -8,21 +8,25 @@ import PaperWMCore
 /// asynchronously on the main actor.
 ///
 /// Currently handled commands:
-/// - `.switchWorkspace(displayID:to:)` → `WorkspaceSwitchCoordinator`
-/// - `.refreshInventory`               → `ReconciliationTriggering` (`.manualRefresh`)
+/// - `.switchWorkspace(displayID:to:)`  → `WorkspaceSwitchCoordinator`
+/// - `.renameWorkspace(workspaceID:newLabel:)` → `WorldStateProtocol`
+/// - `.refreshInventory`                → `ReconciliationTriggering` (`.manualRefresh`)
 ///
 /// All other commands are no-ops with TODO placeholders until the corresponding
 /// coordinators are implemented.
 @MainActor
 public final class CommandRouter: CommandRouterProtocol {
 
+    private let worldState: any WorldStateProtocol
     private let workspaceSwitchCoordinator: WorkspaceSwitchCoordinator
     private let reconciliationCoordinator: any ReconciliationTriggering
 
     public init(
+        worldState: any WorldStateProtocol,
         workspaceSwitchCoordinator: WorkspaceSwitchCoordinator,
         reconciliationCoordinator: any ReconciliationTriggering
     ) {
+        self.worldState = worldState
         self.workspaceSwitchCoordinator = workspaceSwitchCoordinator
         self.reconciliationCoordinator = reconciliationCoordinator
     }
@@ -50,6 +54,9 @@ public final class CommandRouter: CommandRouterProtocol {
         switch command {
         case .switchWorkspace(let displayID, let workspaceID):
             await workspaceSwitchCoordinator.switchWorkspace(to: workspaceID, for: displayID)
+
+        case .renameWorkspace(let workspaceID, let newLabel):
+            worldState.renameWorkspace(workspaceID, newLabel: newLabel)
 
         case .refreshInventory:
             await reconciliationCoordinator.reconcile(reason: .manualRefresh)
