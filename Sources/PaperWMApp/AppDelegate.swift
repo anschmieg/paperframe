@@ -51,10 +51,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     worldState: worldState,
     diagnostics: diagnostics
   )
+  private lazy var workspaceSwitchCoordinator = WorkspaceSwitchCoordinator(
+    worldState: worldState,
+    reconciliationCoordinator: coordinator
+  )
+  private lazy var commandRouter = CommandRouter(
+    workspaceSwitchCoordinator: workspaceSwitchCoordinator,
+    reconciliationCoordinator: coordinator
+  )
 
   // MARK: - UI
 
   private var statusItem: NSStatusItem?
+  /// Submenu populated dynamically with one item per registered workspace.
+  private let workspaceSubmenu = NSMenu()
 
   // MARK: - NSApplicationDelegate
 
@@ -87,6 +97,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(withTitle: "About PaperWM", action: #selector(showAbout), keyEquivalent: "")
     menu.addItem(.separator())
     menu.addItem(withTitle: "Refresh", action: #selector(refresh), keyEquivalent: "r")
+
+    // Workspace switching submenu — populated lazily via NSMenuDelegate.
+    let workspaceMenuItem = NSMenuItem(
+      title: "Switch Workspace", action: nil, keyEquivalent: "")
+    workspaceMenuItem.submenu = workspaceSubmenu
+    workspaceSubmenu.delegate = self
+    menu.addItem(workspaceMenuItem)
+
     // TODO: Add layout commands (move, resize, cycle, etc.)
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
     menu.addItem(.separator())
@@ -128,5 +146,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     alert.informativeText = msg
     alert.addButton(withTitle: "OK")
     _ = alert.runModal()
+  }
+
+  /// Routes a workspace switch command through `CommandRouter`.
+  @objc private func switchWorkspaceAction(_ sender: NSMenuItem) {
+    guard let payload = sender.representedObject as? WorkspaceSwitchPayload else { return }
+    commandRouter.route(
+      .switchWorkspace(displayID: payload.displayID, to: payload.workspaceID))
+  }
+}
+
+// MARK: - WorkspaceSwitchPayload
+
+/// Carries the display and workspace identifiers for a workspace switch menu item.
+private final class WorkspaceSwitchPayload: NSObject {
+  let displayID: DisplayID
+  let workspaceID: WorkspaceID
+
+  init(displayID: DisplayID, workspaceID: WorkspaceID) {
+    self.displayID = displayID
+    self.workspaceID = workspaceID
+  }
+}
+
+// MARK: - NSMenuDelegate (workspace submenu)
+
+extension AppDelegate: NSMenuDelegate {
+  /// Rebuilds the workspace submenu before it is displayed.
+  ///
+  /// Queries the current display topology and world state so that the menu always
+  /// reflects live workspace configuration, including any persisted/restored state.
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    guard menu === workspaceSubmenu else { return }
+    menu.removeAllItems()
+
+    let topology = displayAdapter.currentTopology()
+    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
+    let multiDisplay = displays.count > 1
+
+    guard !displays.isEmpty else {
+      let empty = NSMenuItem(title: "No displays detected", action: nil, keyEquivalent: "")
+      empty.isEnabled = false
+      menu.addItem(empty)
+      return
+    }
+
+    for display in displays {
+      let workspaces = worldState.allWorkspaces(for: display.displayID)
+        .sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
+
+      if multiDisplay {
+        let header = NSMenuItem(
+          title: "Display \(display.displayID.rawValue)", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+      }
+
+      if workspaces.isEmpty {
+        let none = NSMenuItem(
+          title: multiDisplay ? "  No workspaces" : "No workspaces",
+          action: nil, keyEquivalent: "")
+        none.isEnabled = false
+        menu.addItem(none)
+      } else {
+        let activeID = worldState.activeWorkspace(for: display.displayID)?.workspaceID
+        for ws in workspaces {
+          let indent = multiDisplay ? "  " : ""
+          let shortID = String(ws.workspaceID.rawValue.uuidString.prefix(8).uppercased())
+          let item = NSMenuItem(
+            title: "\(indent)Workspace \(shortID)",
+            action: #selector(switchWorkspaceAction(_:)),
+            keyEquivalent: "")
+          item.target = self
+          item.state = ws.workspaceID == activeID ? .on : .off
+          item.representedObject = WorkspaceSwitchPayload(
+            displayID: display.displayID, workspaceID: ws.workspaceID)
+          menu.addItem(item)
+        }
+      }
+
+      if multiDisplay {
+        menu.addItem(.separator())
+      }
+    }
   }
 }

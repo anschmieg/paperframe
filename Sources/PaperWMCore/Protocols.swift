@@ -68,6 +68,9 @@ public protocol WorldStateProtocol: AnyObject {
     ///   or registered for a different display (no-op).
     @discardableResult
     func setActiveWorkspace(_ workspaceID: WorkspaceID, for displayID: DisplayID) -> Bool
+
+    /// Returns all workspaces registered for `displayID`, in unspecified order.
+    func allWorkspaces(for displayID: DisplayID) -> [WorkspaceState]
 }
 
 // MARK: - ProjectionPlanner
