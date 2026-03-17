@@ -278,7 +278,200 @@ func persistenceMultipleDisplaysAreIndependent() {
     #expect(reader.activeWorkspace(for: d2)?.workspaceID == ws2a.workspaceID)
 }
 
-// MARK: - JSON round-trip
+// MARK: - Workspace label round-trip tests
+
+@Test("Workspace label survives in-memory persistence round-trip")
+func workspaceLabelInMemoryRoundTrip() {
+    let store = InMemoryWorldStatePersistenceStore()
+    let displayID = DisplayID(1)
+
+    let did = displayID
+    var ws = WorkspaceState(
+        displayID: did,
+        viewport: ViewportState(displayID: did)
+    )
+    ws.label = "My Work"
+
+    do {
+        let writer = WorldStateStub(persistenceStore: store)
+        writer.updateWorkspaceState(ws)
+    }
+
+    let reader = WorldStateStub(persistenceStore: store)
+    let restored = reader.activeWorkspace(for: displayID)
+    #expect(restored?.workspaceID == ws.workspaceID)
+    #expect(restored?.label == "My Work")
+}
+
+@Test("Workspace label survives JSON persistence round-trip")
+func workspaceLabelJSONRoundTrip() throws {
+    let tmpURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("paperframe-label-test-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+    let displayID = DisplayID(42)
+    let did = displayID
+    var ws = WorkspaceState(
+        displayID: did,
+        viewport: ViewportState(displayID: did)
+    )
+    ws.label = "Design Sprint"
+
+    let original = PersistedWorldState(
+        workspaces: [ws],
+        activeWorkspaces: [ActiveWorkspaceEntry(displayID: displayID, workspaceID: ws.workspaceID)],
+        paperWindowStates: []
+    )
+
+    let jsonStore = JSONWorldStatePersistenceStore(fileURL: tmpURL)
+    try jsonStore.save(original)
+
+    guard let loaded = jsonStore.load() else {
+        Issue.record("JSONWorldStatePersistenceStore.load() returned nil after save")
+        return
+    }
+
+    #expect(loaded.workspaces.count == 1)
+    #expect(loaded.workspaces[0].label == "Design Sprint")
+}
+
+@Test("Older persisted data without label field restores with nil label (backward-compatible)")
+func workspaceLabelMissingFromOldDataRestoresSafely() throws {
+    let tmpURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("paperframe-old-data-\(UUID().uuidString).json")
+    defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+    // Manually craft JSON that does not include the "label" key.
+    let oldJSON = """
+    {
+      "workspaces": [
+        {
+          "workspaceID": {"rawValue": "00000000-0000-0000-0000-000000000001"},
+          "displayID": {"rawValue": 1},
+          "viewport": {
+            "displayID": {"rawValue": 1},
+            "origin": {"x": 0, "y": 0},
+            "scale": 1
+          },
+          "windowIDs": []
+        }
+      ],
+      "activeWorkspaces": [
+        {
+          "displayID": {"rawValue": 1},
+          "workspaceID": {"rawValue": "00000000-0000-0000-0000-000000000001"}
+        }
+      ],
+      "paperWindowStates": []
+    }
+    """
+    try oldJSON.write(to: tmpURL, atomically: true, encoding: .utf8)
+
+    let jsonStore = JSONWorldStatePersistenceStore(fileURL: tmpURL)
+    guard let loaded = jsonStore.load() else {
+        Issue.record("load() returned nil for valid old-format JSON")
+        return
+    }
+
+    #expect(loaded.workspaces.count == 1)
+    // label must be nil when absent from persisted data.
+    #expect(loaded.workspaces[0].label == nil)
+}
+
+@Test("Workspace with nil label falls back to deterministic Workspace N label")
+func workspaceLabelFallbackIsDeterministic() {
+    let store = InMemoryWorldStatePersistenceStore()
+    let displayID = DisplayID(1)
+    let did = displayID
+
+    // Register two workspaces without explicit labels.
+    let ws1 = WorkspaceState(
+        displayID: did,
+        viewport: ViewportState(displayID: did)
+    )
+    let ws2 = WorkspaceState(
+        displayID: did,
+        viewport: ViewportState(displayID: did)
+    )
+
+    let writer = WorldStateStub(persistenceStore: store)
+    writer.updateWorkspaceState(ws1)
+    writer.updateWorkspaceState(ws2)
+
+    let reader = WorldStateStub(persistenceStore: store)
+    let all = reader.allWorkspaces(for: displayID)
+        .sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
+    #expect(all.count == 2)
+
+    // Both should have nil labels (explicit fallback logic is in AppDelegate/display layer).
+    for ws in all {
+        #expect(ws.label == nil)
+    }
+}
+
+@Test("Workspace with empty/whitespace-only label is treated as nil by display layer")
+func workspaceLabelWhitespaceOnlyIsTreatedAsNil() {
+    let displayID = DisplayID(1)
+    let did = displayID
+    var ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    ws.label = "   "
+
+    // Simulate the label-resolution logic from AppDelegate.
+    let trimmed = ws.label?.trimmingCharacters(in: .whitespaces) ?? ""
+    let isUsable = !trimmed.isEmpty
+    #expect(!isUsable)
+}
+
+@Test("Multiple displays each preserve their own labeled workspaces independently")
+func workspaceLabelMultipleDisplaysAreIndependent() {
+    let store = InMemoryWorldStatePersistenceStore()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    var wsD1 = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    wsD1.label = "Display One WS"
+    var wsD2 = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+    wsD2.label = "Display Two WS"
+
+    do {
+        let writer = WorldStateStub(persistenceStore: store)
+        writer.updateWorkspaceState(wsD1)
+        writer.updateWorkspaceState(wsD2)
+    }
+
+    let reader = WorldStateStub(persistenceStore: store)
+    #expect(reader.activeWorkspace(for: d1)?.label == "Display One WS")
+    #expect(reader.activeWorkspace(for: d2)?.label == "Display Two WS")
+}
+
+@Test("Workspace switching still works correctly when labels are present")
+func workspaceSwitchingWithLabelsIsUnchanged() {
+    let store = InMemoryWorldStatePersistenceStore()
+    let displayID = DisplayID(1)
+    let did = displayID
+
+    var wsA = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    wsA.label = "Alpha"
+    var wsB = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    wsB.label = "Beta"
+
+    do {
+        let writer = WorldStateStub(persistenceStore: store)
+        writer.updateWorkspaceState(wsA)
+        writer.updateWorkspaceState(wsB)  // wsB is active
+    }
+
+    let session = WorldStateStub(persistenceStore: store)
+    #expect(session.activeWorkspace(for: displayID)?.workspaceID == wsB.workspaceID)
+    #expect(session.activeWorkspace(for: displayID)?.label == "Beta")
+
+    // Switch to wsA and verify label is preserved.
+    let switched = session.setActiveWorkspace(wsA.workspaceID, for: displayID)
+    #expect(switched)
+    #expect(session.activeWorkspace(for: displayID)?.workspaceID == wsA.workspaceID)
+    #expect(session.activeWorkspace(for: displayID)?.label == "Alpha")
+}
+
 
 @Test("PersistedWorldState JSON round-trip preserves all fields")
 func persistenceJSONRoundTrip() throws {

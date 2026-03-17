@@ -112,16 +112,25 @@ public struct WorkspaceState: Sendable, Codable {
     public var viewport: ViewportState
     /// Ordered list of window IDs belonging to this workspace.
     public var windowIDs: [ManagedWindowID]
+    /// User-visible label for this workspace.
+    ///
+    /// `nil` means no explicit label has been set; callers should supply a
+    /// deterministic fallback (e.g. "Workspace 1") when displaying to the user.
+    /// Labels are presentation data only and do not affect workspace identity
+    /// or switching logic.
+    public var label: String?
 
     public init(
         workspaceID: WorkspaceID = WorkspaceID(),
         displayID: DisplayID,
         viewport: ViewportState,
-        windowIDs: [ManagedWindowID] = []
+        windowIDs: [ManagedWindowID] = [],
+        label: String? = nil
     ) {
         self.workspaceID = workspaceID
         self.displayID = displayID
         self.viewport = viewport
         self.windowIDs = windowIDs
+        self.label = label
     }
 }

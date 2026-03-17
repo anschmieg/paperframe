@@ -210,11 +210,11 @@ extension AppDelegate: NSMenuDelegate {
         menu.addItem(none)
       } else {
         let activeID = worldState.activeWorkspace(for: display.displayID)?.workspaceID
-        for ws in workspaces {
+        for (index, ws) in workspaces.enumerated() {
           let indent = multiDisplay ? "  " : ""
-          let shortID = String(ws.workspaceID.rawValue.uuidString.prefix(8).uppercased())
+          let displayLabel = workspaceMenuLabel(for: ws, index: index)
           let item = NSMenuItem(
-            title: "\(indent)Workspace \(shortID)",
+            title: "\(indent)\(displayLabel)",
             action: #selector(switchWorkspaceAction(_:)),
             keyEquivalent: "")
           item.target = self
@@ -229,5 +229,16 @@ extension AppDelegate: NSMenuDelegate {
         menu.addItem(.separator())
       }
     }
+  }
+
+  /// Returns the display label for a workspace menu item.
+  ///
+  /// Uses the workspace's explicit label when it is non-nil and non-blank.
+  /// Falls back to "Workspace N" (1-based) using the sorted position in the menu.
+  private func workspaceMenuLabel(for workspace: WorkspaceState, index: Int) -> String {
+    if let label = workspace.label, !label.trimmingCharacters(in: .whitespaces).isEmpty {
+      return label
+    }
+    return "Workspace \(index + 1)"
   }
 }
