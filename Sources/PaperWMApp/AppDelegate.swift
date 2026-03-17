@@ -152,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   @objc private func switchWorkspaceAction(_ sender: NSMenuItem) {
     guard let payload = sender.representedObject as? WorkspaceSwitchPayload else { return }
     commandRouter.route(
-      .switchWorkspace(displayID: payload.displayID, to: payload.workspaceID))
+      command: .switchWorkspace(displayID: payload.displayID, to: payload.workspaceID))
   }
 }
 

@@ -131,6 +131,7 @@ public protocol ObserverAndReconcileHubProtocol: AnyObject {
 // MARK: - CommandRouter
 
 /// Routes semantic commands from the UI and global hotkeys into the runtime.
+@MainActor
 public protocol CommandRouterProtocol: AnyObject {
     /// Processes a window management command.
     func route(command: WMCommand)
