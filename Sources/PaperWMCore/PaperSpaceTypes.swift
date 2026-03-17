@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Paper-space geometry
 
 /// A point in paper space (an infinite 2-D canvas, not screen coordinates).
-public struct PaperPoint: Hashable, Sendable {
+public struct PaperPoint: Hashable, Sendable, Codable {
     public var x: Double
     public var y: Double
 
@@ -19,7 +19,7 @@ public struct PaperPoint: Hashable, Sendable {
 ///
 /// Paper-space coordinates are independent of screen resolution and display layout.
 /// They represent user intent; the projection layer converts them to screen frames.
-public struct PaperRect: Hashable, Sendable {
+public struct PaperRect: Hashable, Sendable, Codable {
     public var origin: PaperPoint
     public var width: Double
     public var height: Double
@@ -45,7 +45,7 @@ public struct PaperRect: Hashable, Sendable {
 // MARK: - Window mode
 
 /// The layout mode for a managed window in paper space.
-public enum WindowMode: Sendable {
+public enum WindowMode: Sendable, Codable {
     /// Window participates in the tiled layout grid.
     case tiled
     /// Window floats above the tiled layer; paper coordinates are still tracked.
@@ -61,7 +61,7 @@ public enum WindowMode: Sendable {
 /// The paper-space metadata the window manager keeps for a single managed window.
 ///
 /// This is user intent / organizational state, not a live snapshot.
-public struct PaperWindowState: Sendable {
+public struct PaperWindowState: Sendable, Codable {
     public let windowID: ManagedWindowID
     /// Desired position and size in paper space.
     public var paperRect: PaperRect
@@ -86,7 +86,7 @@ public struct PaperWindowState: Sendable {
 // MARK: - Viewport state
 
 /// Represents the current visible window onto the paper canvas for a specific display.
-public struct ViewportState: Sendable {
+public struct ViewportState: Sendable, Codable {
     /// The display this viewport is anchored to.
     public let displayID: DisplayID
     /// The paper-space origin of the viewport (top-left visible corner).
@@ -104,7 +104,7 @@ public struct ViewportState: Sendable {
 // MARK: - Workspace state
 
 /// A named paper workspace — a user-defined grouping of windows on a display.
-public struct WorkspaceState: Sendable {
+public struct WorkspaceState: Sendable, Codable {
     public let workspaceID: WorkspaceID
     /// The display this workspace is associated with.
     public let displayID: DisplayID
