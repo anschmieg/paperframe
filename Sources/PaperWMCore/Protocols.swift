@@ -62,8 +62,10 @@ public protocol WorldStateProtocol: AnyObject {
 
     /// Switches the active workspace for `displayID` to the workspace identified by `workspaceID`.
     ///
-    /// The workspace must already be registered via `updateWorkspaceState(_:)`.
-    /// - Returns: `true` when the switch succeeded; `false` when the workspace is unknown (no-op).
+    /// The workspace must already be registered via `updateWorkspaceState(_:)` **and**
+    /// must belong to `displayID`. Cross-display workspace activation is explicitly rejected.
+    /// - Returns: `true` when the switch succeeded; `false` when the workspace is unknown
+    ///   or registered for a different display (no-op).
     @discardableResult
     func setActiveWorkspace(_ workspaceID: WorkspaceID, for displayID: DisplayID) -> Bool
 }

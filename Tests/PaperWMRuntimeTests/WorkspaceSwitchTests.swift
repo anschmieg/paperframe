@@ -155,6 +155,27 @@ func worldStateStubPerDisplayWorkspaceStateIsIndependent() {
     #expect(worldState.activeWorkspace(for: d2)?.workspaceID == ws2a.workspaceID)
 }
 
+@Test("WorldStateStub setActiveWorkspace rejects cross-display workspace activation")
+func worldStateStubSetActiveWorkspaceRejectsCrossDisplay() {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    // Register a workspace for display 1.
+    let ws1 = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    worldState.updateWorkspaceState(ws1)
+
+    // Attempt to activate ws1 for display 2 — must fail.
+    let result = worldState.setActiveWorkspace(ws1.workspaceID, for: d2)
+    #expect(!result)
+
+    // Display 2 must have no active workspace (ws1 belongs to d1, not d2).
+    #expect(worldState.activeWorkspace(for: d2) == nil)
+
+    // Display 1 must still have ws1 as active (unchanged by the failed cross-display attempt).
+    #expect(worldState.activeWorkspace(for: d1)?.workspaceID == ws1.workspaceID)
+}
+
 // MARK: - WorkspaceSwitchCoordinator tests
 
 @Test("WorkspaceSwitchCoordinator switches workspace and triggers reconcile")
@@ -279,6 +300,39 @@ func workspaceSwitchCoordinatorPerDisplayIndependence() async {
 
     // Only one reconcile should have been triggered (for d1).
     #expect(spy.reasons.count == 1)
+}
+
+@Test("WorkspaceSwitchCoordinator cross-display workspace switch is safe no-op")
+@MainActor
+func workspaceSwitchCoordinatorCrossDisplayIsSafeNoop() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    // Register workspace on display 1.
+    let ws1 = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    worldState.updateWorkspaceState(ws1)
+
+    // Register a different workspace on display 2.
+    let ws2 = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+    worldState.updateWorkspaceState(ws2)
+
+    let spy = ReconciliationTriggerSpy()
+    let switcher = WorkspaceSwitchCoordinator(
+        worldState: worldState, reconciliationCoordinator: spy)
+
+    // Attempt to switch display 2 to workspace ws1 (which belongs to display 1).
+    let result = await switcher.switchWorkspace(to: ws1.workspaceID, for: d2)
+
+    // Must be a no-op: no reconciliation triggered, nil result.
+    #expect(spy.reasons.isEmpty)
+    #expect(result == nil)
+
+    // Display 2 must still have its original workspace active (ws2, not ws1).
+    #expect(worldState.activeWorkspace(for: d2)?.workspaceID == ws2.workspaceID)
+
+    // Display 1 must remain unchanged.
+    #expect(worldState.activeWorkspace(for: d1)?.workspaceID == ws1.workspaceID)
 }
 
 // MARK: - Viewport behavior after workspace switch (reconciliation integration)

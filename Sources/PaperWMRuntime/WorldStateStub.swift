@@ -51,11 +51,14 @@ public final class WorldStateStub: WorldStateProtocol {
 
     /// Switches the active workspace for `displayID` to the workspace identified by `workspaceID`.
     ///
-    /// The workspace must already be registered via `updateWorkspaceState(_:)`.
-    /// - Returns: `true` when the active workspace changed; `false` when the workspace is unknown.
+    /// The workspace must already be registered via `updateWorkspaceState(_:)` **and**
+    /// must belong to `displayID`. Cross-display workspace activation is rejected.
+    /// - Returns: `true` when the active workspace changed; `false` when the workspace is
+    ///   unknown or registered for a different display.
     @discardableResult
     public func setActiveWorkspace(_ workspaceID: WorkspaceID, for displayID: DisplayID) -> Bool {
-        guard workspaceStorage[workspaceID] != nil else { return false }
+        guard let workspace = workspaceStorage[workspaceID],
+              workspace.displayID == displayID else { return false }
         activeWorkspaceIDs[displayID] = workspaceID
         return true
     }
