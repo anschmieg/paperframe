@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PaperWM Configuration",
+  "description": "Configuration schema for PaperWM window manager",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Config version for migration",
+      "default": "1.0.0"
+    },
+    "shortcuts": {
+      "type": "object",
+      "description": "Keyboard shortcut mappings",
+      "properties": {
+        "modifier": {
+          "type": "string",
+          "enum": ["ctrlOption", "option", "meh"],
+          "default": "ctrlOption",
+          "description": "Modifier key combination: ctrlOption (Ctrl+Option), option (Option only), meh (Ctrl+Option+Shift)"
+        },
+        "switchWorkspaceLeft": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "leftArrow", "modifiers": ["ctrl", "option"] },
+          "description": "Switch to workspace on the left"
+        },
+        "switchWorkspaceRight": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "rightArrow", "modifiers": ["ctrl", "option"] },
+          "description": "Switch to workspace on the right"
+        },
+        "switchWorkspaceUp": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "upArrow", "modifiers": ["ctrl", "option"] },
+          "description": "Switch to workspace above"
+        },
+        "switchWorkspaceDown": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "downArrow", "modifiers": ["ctrl", "option"] },
+          "description": "Switch to workspace below"
+        },
+        "goToWorkspace1": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "1", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace2": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "2", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace3": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "3", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace4": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "4", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace5": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "5", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace6": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "6", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace7": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "7", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace8": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "8", "modifiers": ["ctrl", "option"] }
+        },
+        "goToWorkspace9": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "9", "modifiers": ["ctrl", "option"] }
+        },
+        "newWorkspace": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "n", "modifiers": ["ctrl", "option"] },
+          "description": "Create new workspace"
+        },
+        "renameWorkspace": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "r", "modifiers": ["ctrl", "option"] },
+          "description": "Rename current workspace"
+        },
+        "removeWorkspace": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "delete", "modifiers": ["ctrl", "option"] },
+          "description": "Remove current workspace"
+        },
+        "showMinimap": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "m", "modifiers": ["ctrl", "option"] },
+          "description": "Show mini-map"
+        },
+        "showSwitcher": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "/", "modifiers": ["ctrl", "option"] },
+          "description": "Show workspace switcher"
+        },
+        "hideWindow": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "h", "modifiers": ["ctrl", "option"] },
+          "description": "Hide current window"
+        },
+        "toggleFullscreen": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "f", "modifiers": ["ctrl", "option"] },
+          "description": "Toggle fullscreen"
+        },
+        "toggleFloat": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "t", "modifiers": ["ctrl", "option"] },
+          "description": "Toggle floating"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "description": "Behavioral settings",
+      "properties": {
+        "autoCreateWorkspace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically create workspace when window is moved to non-existent"
+        },
+        "animateTransitions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Animate workspace transitions"
+        },
+        "showHUD": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show HUD notifications for actions"
+        },
+        "hudDuration": {
+          "type": "number",
+          "default": 1.5,
+          "minimum": 0.5,
+          "maximum": 5.0,
+          "description": "HUD display duration in seconds"
+        },
+        "persistWorkspaceState": {
+          "type": "boolean",
+          "default": true,
+          "description": "Persist workspace state across launches"
+        },
+        "defaultLayout": {
+          "type": "string",
+          "enum": ["horizontal", "vertical", "grid", "full"],
+          "default": "horizontal",
+          "description": "Default tiling layout"
+        }
+      }
+    },
+    "gestures": {
+      "type": "object",
+      "description": "Touchpad gesture settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable trackpad gestures"
+        },
+        "threeFingerSwipeLeft": {
+          "type": "string",
+          "enum": ["switchLeft", "switchRight", "showSwitcher", "minimap", "none"],
+          "default": "switchLeft",
+          "description": "Three-finger swipe left action"
+        },
+        "threeFingerSwipeRight": {
+          "type": "string",
+          "enum": ["switchLeft", "switchRight", "showSwitcher", "minimap", "none"],
+          "default": "switchRight",
+          "description": "Three-finger swipe right action"
+        },
+        "threeFingerSwipeUp": {
+          "type": "string",
+          "enum": ["switchLeft", "switchRight", "showSwitcher", "minimap", "none"],
+          "default": "showSwitcher",
+          "description": "Three-finger swipe up action"
+        },
+        "threeFingerSwipeDown": {
+          "type": "string",
+          "enum": ["switchLeft", "switchRight", "showSwitcher", "minimap", "none"],
+          "default": "minimap",
+          "description": "Three-finger swipe down action"
+        }
+      }
+    },
+    "workspaces": {
+      "type": "object",
+      "description": "Workspace settings",
+      "properties": {
+        "maxWorkspaces": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Maximum number of workspaces per display"
+        },
+        "defaultLabels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["Main", "Work", "Chat", "Code", "Mail"],
+          "description": "Default workspace labels"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "keyBinding": {
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key identifier (letter, number, or special: leftArrow, rightArrow, upArrow, downArrow, delete, tab, escape)"
+        },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ctrl", "option", "shift", "command"]
+          },
+          "description": "Modifier keys to hold"
+        }
+      }
+    }
+  }
+}

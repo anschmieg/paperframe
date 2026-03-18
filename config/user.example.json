@@ -1,0 +1,56 @@
+{
+  "$schema": "./schema.json",
+  "version": "1.0.0",
+
+  "shortcuts": {
+    "modifier": "ctrlOption",
+
+    "switchWorkspaceLeft": { "key": "leftArrow", "modifiers": ["ctrl", "option"] },
+    "switchWorkspaceRight": { "key": "rightArrow", "modifiers": ["ctrl", "option"] },
+    "switchWorkspaceUp": { "key": "upArrow", "modifiers": ["ctrl", "option"] },
+    "switchWorkspaceDown": { "key": "downArrow", "modifiers": ["ctrl", "option"] },
+
+    "goToWorkspace1": { "key": "1", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace2": { "key": "2", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace3": { "key": "3", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace4": { "key": "4", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace5": { "key": "5", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace6": { "key": "6", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace7": { "key": "7", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace8": { "key": "8", "modifiers": ["ctrl", "option"] },
+    "goToWorkspace9": { "key": "9", "modifiers": ["ctrl", "option"] },
+
+    "newWorkspace": { "key": "n", "modifiers": ["ctrl", "option"] },
+    "renameWorkspace": { "key": "r", "modifiers": ["ctrl", "option"] },
+    "removeWorkspace": { "key": "delete", "modifiers": ["ctrl", "option"] },
+
+    "showMinimap": { "key": "m", "modifiers": ["ctrl", "option"] },
+    "showSwitcher": { "key": "/", "modifiers": ["ctrl", "option"] },
+
+    "hideWindow": { "key": "h", "modifiers": ["ctrl", "option"] },
+    "toggleFullscreen": { "key": "f", "modifiers": ["ctrl", "option"] },
+    "toggleFloat": { "key": "t", "modifiers": ["ctrl", "option"] }
+  },
+
+  "behavior": {
+    "autoCreateWorkspace": false,
+    "animateTransitions": true,
+    "showHUD": true,
+    "hudDuration": 1.5,
+    "persistWorkspaceState": true,
+    "defaultLayout": "horizontal"
+  },
+
+  "gestures": {
+    "enabled": true,
+    "threeFingerSwipeLeft": "switchLeft",
+    "threeFingerSwipeRight": "switchRight",
+    "threeFingerSwipeUp": "showSwitcher",
+    "threeFingerSwipeDown": "minimap"
+  },
+
+  "workspaces": {
+    "maxWorkspaces": 10,
+    "defaultLabels": ["Main", "Work", "Chat", "Code", "Mail"]
+  }
+}
