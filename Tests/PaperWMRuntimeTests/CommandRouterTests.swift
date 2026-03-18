@@ -690,3 +690,100 @@ func commandRouterRemoveWorkspacePerDisplayIndependence() async {
     #expect(worldState.allWorkspaces(for: d2).count == 1)
     #expect(worldState.activeWorkspace(for: d2)?.workspaceID == ws2a.workspaceID)
 }
+
+// MARK: - Focused tests for per-workspace / per-display menu actions (Milestone 17)
+
+@Test("CommandRouter.handle renameWorkspace on non-active workspace leaves active workspace unchanged")
+@MainActor
+func commandRouterRenameNonActiveWorkspaceLeavesActiveUnchanged() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)  // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Rename the non-active workspace (ws1).
+    await router.handle(
+        command: .renameWorkspace(workspaceID: ws1.workspaceID, newLabel: "Non-Active Renamed"))
+
+    // Active workspace must still be ws2 and its label must be unchanged.
+    let active = worldState.activeWorkspace(for: displayID)
+    #expect(active?.workspaceID == ws2.workspaceID)
+    #expect(active?.label == nil)
+
+    // ws1 must have the new label.
+    let all = worldState.allWorkspaces(for: displayID)
+    let renamed = all.first { $0.workspaceID == ws1.workspaceID }
+    #expect(renamed?.label == "Non-Active Renamed")
+
+    // Rename must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle removeWorkspace on non-active workspace leaves other display active workspace unchanged")
+@MainActor
+func commandRouterRemoveNonActiveOnOneDisplayLeavesOtherDisplayActiveUnchanged() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    let ws1a = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    let ws1b = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    let ws2a = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+    let ws2b = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+
+    worldState.updateWorkspaceState(ws1a)
+    worldState.updateWorkspaceState(ws1b)  // d1 active = ws1b
+    worldState.updateWorkspaceState(ws2a)
+    worldState.updateWorkspaceState(ws2b)  // d2 active = ws2b
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Remove non-active workspace ws1a from d1.
+    await router.handle(command: .removeWorkspace(workspaceID: ws1a.workspaceID))
+
+    // d1: ws1a gone, ws1b still active.
+    #expect(worldState.allWorkspaces(for: d1).count == 1)
+    #expect(worldState.activeWorkspace(for: d1)?.workspaceID == ws1b.workspaceID)
+
+    // d2: completely unaffected — both workspaces remain, active is still ws2b.
+    #expect(worldState.allWorkspaces(for: d2).count == 2)
+    #expect(worldState.activeWorkspace(for: d2)?.workspaceID == ws2b.workspaceID)
+}
+
+@Test("CommandRouter.handle createWorkspace on specific display targets only that display")
+@MainActor
+func commandRouterCreateWorkspaceOnSpecificDisplayTargetsOnlyThatDisplay() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    // Pre-seed one workspace on each display.
+    let ws1 = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    let ws2 = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Create a new workspace explicitly on d2 (simulates display-targeted payload routing).
+    await router.handle(command: .createWorkspace(displayID: d2, label: "D2 New"))
+
+    // d2 must now have 2 workspaces, including the newly created one.
+    let d2Workspaces = worldState.allWorkspaces(for: d2)
+    #expect(d2Workspaces.count == 2)
+    #expect(d2Workspaces.contains { $0.label == "D2 New" })
+
+    // d1 must remain unaffected — still exactly 1 workspace.
+    #expect(worldState.allWorkspaces(for: d1).count == 1)
+
+    // create must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}

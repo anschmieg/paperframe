@@ -99,27 +99,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(.separator())
     menu.addItem(withTitle: "Refresh", action: #selector(refresh), keyEquivalent: "r")
 
-    // Workspace switching submenu — populated lazily via NSMenuDelegate.
+    // Workspace management submenu — grouped by display, populated lazily via NSMenuDelegate.
     let workspaceMenuItem = NSMenuItem(
-      title: "Switch Workspace", action: nil, keyEquivalent: "")
+      title: "Workspaces", action: nil, keyEquivalent: "")
     workspaceMenuItem.submenu = workspaceSubmenu
     workspaceSubmenu.delegate = self
     menu.addItem(workspaceMenuItem)
-
-    menu.addItem(
-      withTitle: "Rename Current Workspace…",
-      action: #selector(renameCurrentWorkspace),
-      keyEquivalent: "")
-
-    menu.addItem(
-      withTitle: "New Workspace…",
-      action: #selector(newWorkspace),
-      keyEquivalent: "")
-
-    menu.addItem(
-      withTitle: "Remove Current Workspace",
-      action: #selector(removeCurrentWorkspace),
-      keyEquivalent: "")
 
     // TODO: Add layout commands (move, resize, cycle, etc.)
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
@@ -171,36 +156,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       command: .switchWorkspace(displayID: payload.displayID, to: payload.workspaceID))
   }
 
-  /// Presents a rename dialog for the active workspace on the lowest-ID display.
+  /// Presents a rename dialog for a specific workspace identified by the menu item's payload.
   ///
-  /// Finds the first display sorted by display ID that has an active workspace,
-  /// pre-fills the current label, and routes the result through `commandRouter`
-  /// so the rename goes through the standard runtime path rather than mutating
-  /// world state directly from the app layer.
-  @objc private func renameCurrentWorkspace() {
-    let topology = displayAdapter.currentTopology()
-    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
+  /// Pre-fills the current workspace label and routes the result through `commandRouter`
+  /// so the rename goes through the standard runtime path rather than mutating world
+  /// state directly from the app layer.
+  @objc private func renameWorkspaceFromMenu(_ sender: NSMenuItem) {
+    guard let payload = sender.representedObject as? WorkspaceRenamePayload else { return }
 
-    // Find the first (lowest-ID) display that has an active workspace.
-    guard
-      let display = displays.first(where: { worldState.activeWorkspace(for: $0.displayID) != nil }),
-      let current = worldState.activeWorkspace(for: display.displayID)
-    else {
-      let alert = NSAlert()
-      alert.messageText = "No Active Workspace"
-      alert.informativeText = "There is no active workspace to rename."
-      alert.addButton(withTitle: "OK")
-      _ = alert.runModal()
-      return
-    }
+    // Look up the current label at action time so the dialog reflects any recent changes.
+    let currentLabel = findWorkspace(byID: payload.workspaceID)?.label
 
     let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-    textField.stringValue = current.label ?? ""
+    textField.stringValue = currentLabel ?? ""
     textField.placeholderString = "Workspace name"
 
     let alert = NSAlert()
     alert.messageText = "Rename Workspace"
-    alert.informativeText = "Enter a new name for the current workspace."
+    alert.informativeText = "Enter a new name for this workspace."
     alert.accessoryView = textField
     alert.addButton(withTitle: "Rename")
     alert.addButton(withTitle: "Cancel")
@@ -210,29 +183,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
     let newLabel: String? = trimmed.isEmpty ? nil : trimmed
     commandRouter.route(
-      command: .renameWorkspace(workspaceID: current.workspaceID, newLabel: newLabel))
+      command: .renameWorkspace(workspaceID: payload.workspaceID, newLabel: newLabel))
   }
 
-  /// Presents a label-prompt dialog and creates a new workspace on the lowest-ID
-  /// display that has an active workspace, or on the first display if none has one.
+  /// Presents a confirmation dialog and removes a specific workspace identified by the
+  /// menu item's payload.
   ///
-  /// Routes the creation through `commandRouter` so the app layer does not
-  /// mutate world state directly.
-  @objc private func newWorkspace() {
-    let topology = displayAdapter.currentTopology()
-    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
+  /// Re-checks the workspace count at action time to guard against the workspace having
+  /// disappeared between menu construction and the user confirming the action.
+  /// Routes removal through `commandRouter` so the app layer does not mutate world
+  /// state directly.
+  @objc private func removeWorkspaceFromMenu(_ sender: NSMenuItem) {
+    guard let payload = sender.representedObject as? WorkspaceRemovePayload else { return }
 
-    guard let display = displays.first else {
+    // Re-check at action time: workspace may have disappeared or count may have changed.
+    let workspaces = worldState.allWorkspaces(for: payload.displayID)
+    guard workspaces.contains(where: { $0.workspaceID == payload.workspaceID }) else {
+      // Workspace disappeared between menu construction and action — safe no-op.
+      return
+    }
+
+    if workspaces.count <= 1 {
       let alert = NSAlert()
-      alert.messageText = "No Displays Detected"
-      alert.informativeText = "A workspace cannot be created without a display."
+      alert.messageText = "Cannot Remove Workspace"
+      alert.informativeText = "The last remaining workspace on a display cannot be removed."
       alert.addButton(withTitle: "OK")
       _ = alert.runModal()
       return
     }
 
-    // Prefer the lowest-ID display that already has workspaces; fall back to first display.
-    let targetDisplay = displays.first(where: { !worldState.allWorkspaces(for: $0.displayID).isEmpty }) ?? display
+    let confirm = NSAlert()
+    confirm.messageText = "Remove \"\(payload.displayLabel)\"?"
+    confirm.informativeText = "This workspace will be removed. This action cannot be undone."
+    confirm.addButton(withTitle: "Remove")
+    confirm.addButton(withTitle: "Cancel")
+    guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+    commandRouter.route(command: .removeWorkspace(workspaceID: payload.workspaceID))
+  }
+
+  /// Presents a label-prompt dialog and creates a new workspace on a specific display
+  /// identified by the menu item's payload.
+  ///
+  /// Routes creation through `commandRouter` so the app layer does not mutate world
+  /// state directly.
+  @objc private func newWorkspaceOnDisplay(_ sender: NSMenuItem) {
+    guard let payload = sender.representedObject as? DisplayCreatePayload else { return }
 
     let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
     textField.placeholderString = "Workspace name (optional)"
@@ -248,59 +244,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
     let label: String? = trimmed.isEmpty ? nil : trimmed
-    commandRouter.route(command: .createWorkspace(displayID: targetDisplay.displayID, label: label))
+    commandRouter.route(command: .createWorkspace(displayID: payload.displayID, label: label))
   }
 
-  /// Removes the active workspace on the lowest-ID display that has one.
-  ///
-  /// Shows a confirmation dialog before routing the removal through `commandRouter`.
-  @objc private func removeCurrentWorkspace() {
+  // MARK: - Private helpers
+
+  /// Returns the workspace state for the given workspace ID by searching across all
+  /// displays in the current topology.  Returns `nil` if the workspace is not found.
+  private func findWorkspace(byID workspaceID: WorkspaceID) -> WorkspaceState? {
     let topology = displayAdapter.currentTopology()
-    let displays = topology.displays.sorted { $0.displayID.rawValue < $1.displayID.rawValue }
-
-    guard
-      let display = displays.first(where: { worldState.activeWorkspace(for: $0.displayID) != nil }),
-      let current = worldState.activeWorkspace(for: display.displayID)
-    else {
-      let alert = NSAlert()
-      alert.messageText = "No Active Workspace"
-      alert.informativeText = "There is no active workspace to remove."
-      alert.addButton(withTitle: "OK")
-      _ = alert.runModal()
-      return
+    for display in topology.displays {
+      if let ws = worldState.allWorkspaces(for: display.displayID)
+        .first(where: { $0.workspaceID == workspaceID })
+      {
+        return ws
+      }
     }
-
-    let workspaces = worldState.allWorkspaces(for: display.displayID)
-    if workspaces.count <= 1 {
-      let alert = NSAlert()
-      alert.messageText = "Cannot Remove Workspace"
-      alert.informativeText = "The last remaining workspace on a display cannot be removed."
-      alert.addButton(withTitle: "OK")
-      _ = alert.runModal()
-      return
-    }
-
-    let displayLabel: String
-    if let label = current.label, !label.trimmingCharacters(in: .whitespaces).isEmpty {
-      displayLabel = label
-    } else {
-      let sorted = workspaces.sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
-      let idx = sorted.firstIndex(where: { $0.workspaceID == current.workspaceID }) ?? 0
-      displayLabel = "Workspace \(idx + 1)"
-    }
-
-    let confirm = NSAlert()
-    confirm.messageText = "Remove \"\(displayLabel)\"?"
-    confirm.informativeText = "This workspace will be removed. This action cannot be undone."
-    confirm.addButton(withTitle: "Remove")
-    confirm.addButton(withTitle: "Cancel")
-    guard confirm.runModal() == .alertFirstButtonReturn else { return }
-
-    commandRouter.route(command: .removeWorkspace(workspaceID: current.workspaceID))
+    return nil
   }
 }
 
-// MARK: - WorkspaceSwitchPayload
+// MARK: - Menu payload types
 
 /// Carries the display and workspace identifiers for a workspace switch menu item.
 private final class WorkspaceSwitchPayload: NSObject {
@@ -313,6 +277,40 @@ private final class WorkspaceSwitchPayload: NSObject {
   }
 }
 
+/// Carries the workspace identifier for a rename menu item.
+private final class WorkspaceRenamePayload: NSObject {
+  let workspaceID: WorkspaceID
+
+  init(workspaceID: WorkspaceID) {
+    self.workspaceID = workspaceID
+  }
+}
+
+/// Carries the workspace identifier and display context for a remove menu item.
+///
+/// `displayID` is used to re-check the workspace count at action time.
+/// `displayLabel` is the pre-computed human-readable label shown in the confirmation dialog.
+private final class WorkspaceRemovePayload: NSObject {
+  let workspaceID: WorkspaceID
+  let displayID: DisplayID
+  let displayLabel: String
+
+  init(workspaceID: WorkspaceID, displayID: DisplayID, displayLabel: String) {
+    self.workspaceID = workspaceID
+    self.displayID = displayID
+    self.displayLabel = displayLabel
+  }
+}
+
+/// Carries the display identifier for a per-display workspace creation menu item.
+private final class DisplayCreatePayload: NSObject {
+  let displayID: DisplayID
+
+  init(displayID: DisplayID) {
+    self.displayID = displayID
+  }
+}
+
 // MARK: - NSMenuDelegate (workspace submenu)
 
 extension AppDelegate: NSMenuDelegate {
@@ -320,6 +318,12 @@ extension AppDelegate: NSMenuDelegate {
   ///
   /// Queries the current display topology and world state so that the menu always
   /// reflects live workspace configuration, including any persisted/restored state.
+  ///
+  /// Menu structure per display:
+  /// - Display header (multi-display only)
+  /// - Per workspace: label item with submenu containing Switch / Rename… / Remove…
+  /// - New Workspace… (scoped to this display)
+  /// - Separator (between displays, multi-display only)
   func menuNeedsUpdate(_ menu: NSMenu) {
     guard menu === workspaceSubmenu else { return }
     menu.removeAllItems()
@@ -335,10 +339,7 @@ extension AppDelegate: NSMenuDelegate {
       return
     }
 
-    for display in displays {
-      let workspaces = worldState.allWorkspaces(for: display.displayID)
-        .sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
-
+    for (displayIndex, display) in displays.enumerated() {
       if multiDisplay {
         let header = NSMenuItem(
           title: "Display \(display.displayID.rawValue)", action: nil, keyEquivalent: "")
@@ -346,33 +347,85 @@ extension AppDelegate: NSMenuDelegate {
         menu.addItem(header)
       }
 
+      let workspaces = worldState.allWorkspaces(for: display.displayID)
+        .sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
+      let activeID = worldState.activeWorkspace(for: display.displayID)?.workspaceID
+      let indent = multiDisplay ? "  " : ""
+
       if workspaces.isEmpty {
         let none = NSMenuItem(
-          title: multiDisplay ? "  No workspaces" : "No workspaces",
-          action: nil, keyEquivalent: "")
+          title: "\(indent)No workspaces", action: nil, keyEquivalent: "")
         none.isEnabled = false
         menu.addItem(none)
       } else {
-        let activeID = worldState.activeWorkspace(for: display.displayID)?.workspaceID
         for (index, ws) in workspaces.enumerated() {
-          let indent = multiDisplay ? "  " : ""
-          let displayLabel = workspaceMenuLabel(for: ws, index: index)
-          let item = NSMenuItem(
-            title: "\(indent)\(displayLabel)",
-            action: #selector(switchWorkspaceAction(_:)),
-            keyEquivalent: "")
-          item.target = self
-          item.state = ws.workspaceID == activeID ? .on : .off
-          item.representedObject = WorkspaceSwitchPayload(
-            displayID: display.displayID, workspaceID: ws.workspaceID)
-          menu.addItem(item)
+          let label = workspaceMenuLabel(for: ws, index: index)
+          let wsItem = NSMenuItem(title: "\(indent)\(label)", action: nil, keyEquivalent: "")
+          wsItem.state = ws.workspaceID == activeID ? .on : .off
+
+          // Per-workspace action submenu.
+          let sub = buildWorkspaceActionSubmenu(
+            for: ws,
+            displayID: display.displayID,
+            displayLabel: label)
+          wsItem.submenu = sub
+
+          menu.addItem(wsItem)
         }
       }
 
-      if multiDisplay {
+      // Per-display workspace creation action.
+      let newItem = NSMenuItem(
+        title: "\(indent)New Workspace…",
+        action: #selector(newWorkspaceOnDisplay(_:)),
+        keyEquivalent: "")
+      newItem.target = self
+      newItem.representedObject = DisplayCreatePayload(displayID: display.displayID)
+      menu.addItem(newItem)
+
+      if multiDisplay && displayIndex < displays.count - 1 {
         menu.addItem(.separator())
       }
     }
+  }
+
+  /// Builds the per-workspace action submenu containing Switch, Rename…, and Remove….
+  private func buildWorkspaceActionSubmenu(
+    for workspace: WorkspaceState,
+    displayID: DisplayID,
+    displayLabel: String
+  ) -> NSMenu {
+    let sub = NSMenu()
+
+    let switchItem = NSMenuItem(
+      title: "Switch",
+      action: #selector(switchWorkspaceAction(_:)),
+      keyEquivalent: "")
+    switchItem.target = self
+    switchItem.representedObject = WorkspaceSwitchPayload(
+      displayID: displayID, workspaceID: workspace.workspaceID)
+    sub.addItem(switchItem)
+
+    let renameItem = NSMenuItem(
+      title: "Rename…",
+      action: #selector(renameWorkspaceFromMenu(_:)),
+      keyEquivalent: "")
+    renameItem.target = self
+    renameItem.representedObject = WorkspaceRenamePayload(workspaceID: workspace.workspaceID)
+    sub.addItem(renameItem)
+
+    let removeItem = NSMenuItem(
+      title: "Remove…",
+      action: #selector(removeWorkspaceFromMenu(_:)),
+      keyEquivalent: "")
+    removeItem.target = self
+    removeItem.representedObject = WorkspaceRemovePayload(
+      workspaceID: workspace.workspaceID,
+      displayID: displayID,
+      displayLabel: displayLabel)
+    sub.addItem(removeItem)
+
+    return sub
   }
 
   /// Returns the display label for a workspace menu item.
