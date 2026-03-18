@@ -87,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     setupStatusItem()
     checkPermissionsAndShowOnboarding()
+    setupKeyboardShortcuts()
     diagnostics.record(event: .displayTopologyChanged)
 
     // Perform the initial reconciliation pass.
@@ -484,6 +485,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard confirm.runModal() == .alertFirstButtonReturn else { return }
 
     commandRouter.route(command: .removeWorkspace(workspaceID: current.workspaceID))
+  }
+
+  // MARK: - Keyboard shortcuts (Ctrl+Option)
+
+  private lazy var keyboardHandler: KeyboardShortcutHandler = {
+    KeyboardShortcutHandler(
+      worldState: worldState,
+      displayAdapter: displayAdapter,
+      commandRouter: commandRouter,
+      visualController: visualController
+    )
+  }()
+
+  private func setupKeyboardShortcuts() {
+    keyboardHandler.start()
   }
 
   // MARK: - Private helpers
