@@ -294,11 +294,21 @@ final class VisualIndicatorController {
         }
 
         // Add instruction label
-        let instructionLabel = NSTextField(labelWithString: "← → to switch  |  Esc to close")
-        instructionLabel.font = NSFont.systemFont(ofSize: 10)
+        // Keyboard shortcut hints
+        let shortcuts = [
+            "⌃⌥←/→ Switch",
+            "⌃⌥1-9 Go to",
+            "⌃⌥M Map",
+            "⌃⌥N New",
+            "⌃⌥R Rename"
+        ]
+        let hintText = shortcuts.joined(separator: "  |  ")
+        let instructionLabel = NSTextField(labelWithString: hintText)
+        instructionLabel.font = NSFont.systemFont(ofSize: 9)
         instructionLabel.textColor = NSColor.tertiaryLabelColor
         instructionLabel.alignment = .center
-        instructionLabel.frame = NSRect(x: padding, y: 8, width: windowWidth - padding * 2, height: 14)
+        instructionLabel.frame = NSRect(x: padding, y: 8, width: windowWidth - padding * 2, height: 24)
+        instructionLabel.maximumNumberOfLines = 2
         content.addSubview(instructionLabel)
 
         minimap.orderFront(nil)
@@ -358,7 +368,107 @@ final class VisualIndicatorController {
     // MARK: - Workspace Switcher Overlay
 
     func showWorkspaceSwitcher() {
-        // TODO: Implement workspace switcher overlay
-        showHUD(message: "Workspace Switcher", detail: "Coming soon")
+        // Remove existing
+        minimapWindow?.close()
+
+        let topology = displayAdapter.currentTopology()
+        guard let primaryDisplay = topology.displays.first else { return }
+        let workspaces = worldState.allWorkspaces(for: primaryDisplay.displayID)
+        guard !workspaces.isEmpty else { return }
+
+        let activeID = worldState.activeWorkspace(for: primaryDisplay.displayID)
+
+        // Calculate size
+        let cols = min(workspaces.count, 5)
+        let rows = (workspaces.count + cols - 1) / cols
+        let cellWidth: CGFloat = 80
+        let cellHeight: CGFloat = 60
+        let padding: CGFloat = 8
+        let headerHeight: CGFloat = 40
+
+        let windowWidth = CGFloat(cols) * (cellWidth + padding) + padding * 2
+        let windowHeight = CGFloat(rows) * (cellHeight + padding) + padding + headerHeight + 30
+
+        let switcher = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
+            styleMask: [.borderless, .titled],
+            backing: .buffered,
+            defer: false
+        )
+        switcher.level = .floating
+        switcher.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.98)
+        switcher.isOpaque = false
+        switcher.title = "Switch Workspace"
+        switcher.titlebarAppearsTransparent = true
+
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let x = screenFrame.midX - windowWidth / 2
+            let y = screenFrame.midY - windowHeight / 2
+            switcher.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        let content = NSView(frame: switcher.contentView!.bounds)
+        content.wantsLayer = true
+        content.layer?.cornerRadius = 12
+        content.layer?.masksToBounds = true
+        content.layer?.borderWidth = 1
+        content.layer?.borderColor = NSColor.separatorColor.cgColor
+
+        // Title
+        let titleLabel = NSTextField(labelWithString: "Switch Workspace")
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = NSColor.labelColor
+        titleLabel.frame = NSRect(x: padding, y: windowHeight - 28, width: windowWidth - padding * 2, height: 20)
+        content.addSubview(titleLabel)
+
+        // Draw cells
+        for (index, workspace) in workspaces.enumerated() {
+            let col = index % cols
+            let row = index / cols
+            let cellX = padding + CGFloat(col) * (cellWidth + padding)
+            let cellY = padding + CGFloat(rows - 1 - row) * (cellHeight + padding)
+
+            let isActive = workspace.workspaceID == activeID?.workspaceID
+
+            let cellView = NSView(frame: NSRect(x: cellX, y: cellY, width: cellWidth, height: cellHeight))
+            cellView.wantsLayer = true
+            cellView.layer?.cornerRadius = 6
+            cellView.layer?.borderWidth = isActive ? 2 : 1
+            cellView.layer?.borderColor = isActive ? NSColor.controlAccentColor.cgColor : NSColor.separatorColor.cgColor
+            cellView.layer?.backgroundColor = isActive ? NSColor.controlAccentColor.withAlphaComponent(0.15).cgColor : NSColor.controlBackgroundColor.cgColor
+            content.addSubview(cellView)
+
+            // Number
+            let numLabel = NSTextField(labelWithString: "\(index + 1)")
+            numLabel.font = NSFont.systemFont(ofSize: 18, weight: .bold)
+            numLabel.textColor = isActive ? NSColor.controlAccentColor : NSColor.secondaryLabelColor
+            numLabel.alignment = .center
+            numLabel.frame = NSRect(x: 0, y: cellHeight - 25, width: cellWidth, height: 22)
+            cellView.addSubview(numLabel)
+
+            // Name
+            let name = workspace.label ?? "Workspace \(index + 1)"
+            let nameLabel = NSTextField(labelWithString: name)
+            nameLabel.font = NSFont.systemFont(ofSize: 10)
+            nameLabel.textColor = NSColor.labelColor
+            nameLabel.alignment = .center
+            nameLabel.frame = NSRect(x: 4, y: 8, width: cellWidth - 8, height: 14)
+            nameLabel.lineBreakMode = .byTruncatingTail
+            cellView.addSubview(nameLabel)
+        }
+
+        // Hints
+        let hintText = "⌃⌥1-9 or Click to switch  |  Esc to close"
+        let hintLabel = NSTextField(labelWithString: hintText)
+        hintLabel.font = NSFont.systemFont(ofSize: 9)
+        hintLabel.textColor = NSColor.tertiaryLabelColor
+        hintLabel.alignment = .center
+        hintLabel.frame = NSRect(x: padding, y: 8, width: windowWidth - padding * 2, height: 12)
+        content.addSubview(hintLabel)
+
+        switcher.contentView = content
+        switcher.orderFront(nil)
+        self.minimapWindow = switcher
     }
 }
