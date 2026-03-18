@@ -88,11 +88,9 @@ jobs:
           name: PaperWM
           path: PaperWM.zip
 
-      - name: Create Release
+      - name: Upload Release Asset
         if: github.event_name == 'release'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: PaperWM.zip
-          draft: true
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} PaperWM.zip --clobber
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
