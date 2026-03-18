@@ -1,8 +1,8 @@
-# PaperWM Developer Guide
+# Paperframe Developer Guide
 
 ## Overview
 
-PaperWM is a macOS window manager built with Swift/AppKit using public Accessibility APIs. It implements a paper-space model where windows exist in a continuous logical space, projected onto real displays.
+Paperframe is a macOS window manager built with Swift/AppKit using public Accessibility APIs. It implements a paper-space model where windows exist in a continuous logical space, projected onto real displays.
 
 ## Architecture
 
@@ -10,24 +10,24 @@ PaperWM is a macOS window manager built with Swift/AppKit using public Accessibi
 
 ```
 Sources/
-├── PaperWMCore/            # Pure data types and service protocols — no macOS framework imports
-├── PaperWMMacAdapters/     # macOS adapter stubs (Cocoa/AppKit) — implements Core protocols
-├── PaperWMRuntime/         # Domain service implementations using adapters
-└── PaperWMApp/             # Menu-bar executable — wires runtime together
+├── PaperframeCore/            # Pure data types and service protocols — no macOS framework imports
+├── PaperframeMacAdapters/     # macOS adapter stubs (Cocoa/AppKit) — implements Core protocols
+├── PaperframeRuntime/         # Domain service implementations using adapters
+└── PaperframeApp/             # Menu-bar executable — wires runtime together
 ```
 
 ### Dependency Graph
 
 ```
-PaperWMApp → PaperWMRuntime → PaperWMCore
-           → PaperWMMacAdapters → PaperWMCore
+PaperframeApp → PaperframeRuntime → PaperframeCore
+           → PaperframeMacAdapters → PaperframeCore
 ```
 
-**PaperWMCore** has no dependencies outside Foundation.
+**PaperframeCore** has no dependencies outside Foundation.
 
 ### Key Components
 
-#### PaperWMCore (Core Types)
+#### PaperframeCore (Core Types)
 
 - `Identity.swift` - ManagedWindowID, DisplayID, WorkspaceID
 - `SnapshotTypes.swift` - ManagedWindowSnapshot, AppDescriptor, WindowCapabilities
@@ -35,23 +35,23 @@ PaperWMApp → PaperWMRuntime → PaperWMCore
 - `PlanningTypes.swift` - DisplayTopology, PlacementPlan, WMEvent, WMCommand, Direction
 - `Protocols.swift` - All service protocol definitions
 
-#### PaperWMMacAdapters (macOS Integration)
+#### PaperframeMacAdapters (macOS Integration)
 
 - `AXAdapter.swift` - Accessibility API window enumeration and control
 - `DisplayAdapter.swift` - NSScreen topology and display management
 - `WindowInventoryService.swift` - Window enumeration and capability probing
 
-#### PaperWMRuntime (Domain Logic)
+#### PaperframeRuntime (Domain Logic)
 
 - `CommandRouter.swift` - Routes commands to appropriate handlers
 - `WorkspaceSwitchCoordinator.swift` - Workspace switching orchestration
 - `ObserverAndReconcileHub.swift` - Event observation and reconciliation
 - `PlacementTransactionEngine.swift` - Window positioning and verification
 
-#### PaperWMApp (Application)
+#### PaperframeApp (Application)
 
 - `AppDelegate.swift` - Menu bar app, status item, initialization
-- `PaperWMConfig.swift` - Configuration loading and management
+- `PaperframeConfig.swift` - Configuration loading and management
 - `KeyboardShortcutHandler.swift` - Global keyboard event handling
 - `VisualIndicatorController.swift` - HUD, minimap, workspace switcher
 
@@ -79,7 +79,7 @@ swift build -c release
 
 ```bash
 # Run the app
-swift run PaperWMApp
+swift run PaperframeApp
 ```
 
 ## Configuration System
@@ -94,7 +94,7 @@ The config file is validated against `config/schema.json`. This provides:
 
 ### Config Models
 
-Swift models are in `Sources/PaperWMApp/PaperWMConfig.swift`:
+Swift models are in `Sources/PaperframeApp/PaperframeConfig.swift`:
 
 - `Config` - Root configuration
 - `ShortcutsConfig` - Keyboard shortcut bindings
@@ -113,9 +113,9 @@ Swift models are in `Sources/PaperWMApp/PaperWMConfig.swift`:
 
 ### Adding a New Feature
 
-1. Define protocols in PaperWMCore if new service required
+1. Define protocols in PaperframeCore if new service required
 2. Implement in appropriate adapter/runtime module
-3. Wire up in PaperWMApp
+3. Wire up in PaperframeApp
 4. Add tests
 5. Add config options if user-configurable
 
@@ -156,12 +156,12 @@ swift build
 swift test
 
 # Run specific test suite
-swift test --filter PaperWMRuntimeTests
+swift test --filter PaperframeRuntimeTests
 ```
 
 ### Debug Logging
 
-Add debug output by importing PaperWMCore and using `print()` statements. The app runs in the menu bar so check Console.app for output.
+Add debug output by importing PaperframeCore and using `print()` statements. The app runs in the menu bar so check Console.app for output.
 
 ## Permissions
 

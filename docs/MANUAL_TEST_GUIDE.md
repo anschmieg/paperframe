@@ -1,6 +1,6 @@
-# PaperWM Manual Test Guide
+# Paperframe Manual Test Guide
 
-This guide covers all manual tests to validate PaperWM functionality.
+This guide covers all manual tests to validate Paperframe functionality.
 
 ## Prerequisites
 
@@ -26,12 +26,12 @@ swift build
 ### 1.2 Launch the App
 
 ```bash
-swift run PaperWMApp
+swift run PaperframeApp
 ```
 
 **Expected:**
 - App launches
-- Menu bar icon appears (PaperWM status item)
+- Menu bar icon appears (Paperframe status item)
 - No crash or immediate exit
 
 **If fails:** Check Console.app for error logs
@@ -43,7 +43,7 @@ swift run PaperWMApp
 ### 2.1 Accessibility Permission Request
 
 **Steps:**
-1. Launch PaperWM for the first time
+1. Launch Paperframe for the first time
 2. Observe permission request dialog
 
 **Expected:**
@@ -54,17 +54,17 @@ swift run PaperWMApp
 
 **Steps:**
 1. Open System Settings → Privacy & Security → Accessibility
-2. Enable PaperWM if not already enabled
+2. Enable Paperframe if not already enabled
 
 **Expected:**
-- PaperWM appears in the list
+- Paperframe appears in the list
 - Toggle shows enabled state
 - App functions correctly after enabling
 
 ### 2.3 Test Without Permission
 
 **Steps:**
-1. Disable PaperWM in Accessibility settings
+1. Disable Paperframe in Accessibility settings
 2. Try keyboard shortcuts
 
 **Expected:**
@@ -79,7 +79,7 @@ swift run PaperWMApp
 ### 3.1 Config File Creation
 
 **Steps:**
-1. Launch PaperWM (fresh install)
+1. Launch Paperframe (fresh install)
 2. Check `~/.config/paperframe/`
 
 **Expected:**
@@ -293,8 +293,8 @@ swift run PaperWMApp
 1. Create multiple workspaces
 2. Rename some workspaces
 3. Move windows between workspaces
-4. Quit PaperWM (`Cmd+Q` from menu bar icon)
-5. Relaunch PaperWM
+4. Quit Paperframe (`Cmd+Q` from menu bar icon)
+5. Relaunch Paperframe
 
 **Expected:**
 - Workspaces restored with same names
@@ -363,7 +363,7 @@ swift run PaperWMApp
 ### 9.5 App Relaunch
 
 **Steps:**
-1. Launch PaperWM
+1. Launch Paperframe
 2. Force quit via Activity Monitor
 3. Relaunch immediately
 
@@ -405,7 +405,7 @@ swift run PaperWMApp
 ### 11.1 Accessibility Revoked
 
 **Steps:**
-1. Disable PaperWM in Accessibility settings while running
+1. Disable Paperframe in Accessibility settings while running
 2. Try window management shortcuts
 
 **Expected:**

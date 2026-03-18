@@ -30,24 +30,24 @@ jobs:
       - name: Create App Bundle
         run: |
           # Create the app bundle structure
-          mkdir -p PaperWM.app/Contents/MacOS
-          mkdir -p PaperWM.app/Contents/Resources
+          mkdir -p Paperframe.app/Contents/MacOS
+          mkdir -p Paperframe.app/Contents/Resources
 
           # Copy the executable
-          cp .build/release/PaperWMApp PaperWM.app/Contents/MacOS/PaperWM
+          cp .build/release/PaperWMApp Paperframe.app/Contents/MacOS/Paperframe
 
           # Create Info.plist
-          cat > PaperWM.app/Contents/Info.plist << 'EOF'
+          cat > Paperframe.app/Contents/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>CFBundleExecutable</key>
-              <string>PaperWM</string>
+              <string>Paperframe</string>
               <key>CFBundleIdentifier</key>
-              <string>com.paperframe.paperwm</string>
+              <string>com.paperframe.paperframe</string>
               <key>CFBundleName</key>
-              <string>PaperWM</string>
+              <string>Paperframe</string>
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
@@ -70,7 +70,7 @@ jobs:
           if [ -n "$APPLE_CERTIFICATE" ]; then
             echo "$APPLE_CERTIFICATE" | base64 --decode -o certificate.p12
             security import certificate.p12 -k ~/Library/Keychains/login.keychain -P "$APPLE_CERTIFICATE_PWD"
-            codesign --force --deep --sign "Apple Development" PaperWM.app
+            codesign --force --deep --sign "Apple Development" Paperframe.app
           else
             echo "No certificate provided - skipping code signing"
           fi
@@ -80,17 +80,17 @@ jobs:
 
       - name: Create ZIP Archive
         run: |
-          zip -r PaperWM.zip PaperWM.app
+          zip -r Paperframe.zip Paperframe.app
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PaperWM
-          path: PaperWM.zip
+          name: Paperframe
+          path: Paperframe.zip
 
       - name: Upload Release Asset
         if: github.event_name == 'release'
         run: |
-          gh release upload ${{ github.event.release.tag_name }} PaperWM.zip --clobber
+          gh release upload ${{ github.event.release.tag_name }} Paperframe.zip --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

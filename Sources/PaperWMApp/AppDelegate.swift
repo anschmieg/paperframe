@@ -3,7 +3,7 @@ import PaperWMCore
 import PaperWMMacAdapters
 import PaperWMRuntime
 
-/// Application delegate for the PaperWM menu-bar app.
+/// Application delegate for the Paperframe menu-bar app.
 ///
 /// This is the production composition point. It wires together the real macOS adapters
 /// with the runtime reconciliation pipeline and exposes trigger paths for reconciliation.
@@ -86,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     // Initialize config to ensure ~/.config/paperframe/ directory exists
-    _ = PaperWMConfig.shared
+    _ = PaperframeConfig.shared
 
     setupStatusItem()
     checkPermissionsAndShowOnboarding()
@@ -114,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let alert = NSAlert()
     alert.messageText = "Accessibility Permission Required"
     alert.informativeText = """
-      PaperWM needs Accessibility permission to manage windows.
+      Paperframe needs Accessibility permission to manage windows.
 
       Without this permission, the app runs in reduced mode and cannot:
       • Discover or enumerate windows
@@ -140,8 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   private func setupStatusItem() {
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    statusItem?.button?.title = "⬜ PaperWM"
-    statusItem?.button?.toolTip = "PaperWM window manager"
+    statusItem?.button?.title = "⬜ Paperframe"
+    statusItem?.button?.toolTip = "Paperframe window manager"
 
     // Initialize visual indicator controller
     visualController = VisualIndicatorController(
@@ -151,7 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     let menu = NSMenu()
-    menu.addItem(withTitle: "About PaperWM", action: #selector(showAbout), keyEquivalent: "")
+    menu.addItem(withTitle: "About Paperframe", action: #selector(showAbout), keyEquivalent: "")
     menu.addItem(.separator())
     menu.addItem(withTitle: "Refresh", action: #selector(refresh), keyEquivalent: "r")
 
@@ -179,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
     menu.addItem(.separator())
     menu.addItem(
-      withTitle: "Quit PaperWM", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+      withTitle: "Quit Paperframe", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
     statusItem?.menu = menu
   }
@@ -212,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       Reduced mode: \(report.permissionsState.isReducedMode ? "yes" : "no")
       """
     let alert = NSAlert()
-    alert.messageText = "PaperWM Diagnostics"
+    alert.messageText = "Paperframe Diagnostics"
     alert.informativeText = msg
     alert.addButton(withTitle: "OK")
     _ = alert.runModal()
@@ -229,11 +229,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     msg += "Input Monitoring: \(state.inputMonitoring == .granted ? "✓ Granted" : "⚠ Not Required for Basic Features")\n\n"
 
     if state.isReducedMode {
-      msg += "PaperWM is running in reduced mode because Accessibility permission is not granted.\n\n"
-      msg += "Without Accessibility permission, PaperWM cannot manage windows. Please grant permission to enable full functionality.\n\n"
-      msg += "Click 'Open System Settings' to grant permission, then restart PaperWM."
+      msg += "Paperframe is running in reduced mode because Accessibility permission is not granted.\n\n"
+      msg += "Without Accessibility permission, Paperframe cannot manage windows. Please grant permission to enable full functionality.\n\n"
+      msg += "Click 'Open System Settings' to grant permission, then restart Paperframe."
     } else {
-      msg += "All required permissions are granted. PaperWM is fully functional."
+      msg += "All required permissions are granted. Paperframe is fully functional."
     }
 
     let alert = NSAlert()

@@ -1,6 +1,6 @@
-# PaperWM User Guide
+# Paperframe User Guide
 
-PaperWM is a macOS window manager that provides a paper-space tiling experience. Windows are arranged in a continuous horizontal or vertical canvas, allowing you to scroll through workspaces infinitely.
+Paperframe is a macOS window manager that provides a paper-space tiling experience. Windows are arranged in a continuous horizontal or vertical canvas, allowing you to scroll through workspaces infinitely.
 
 ## Quick Start
 
@@ -8,12 +8,12 @@ PaperWM is a macOS window manager that provides a paper-space tiling experience.
 
 1. Clone the repository
 2. Build the app: `swift build`
-3. Run the app bundle from `.build/debug/PaperWM.app`
+3. Run the app bundle from `.build/debug/Paperframe.app`
 4. Grant Accessibility permissions when prompted (System Settings → Privacy & Security → Accessibility)
 
 ### First-Time Setup
 
-On first launch, PaperWM will:
+On first launch, Paperframe will:
 - Request Accessibility permissions (required for window management)
 - Create a default configuration at `~/.config/paperframe/config.json`
 - Display a brief onboarding HUD
@@ -92,7 +92,7 @@ Gesture actions: `switchLeft`, `switchRight`, `showSwitcher`, `minimap`, `none`
 
 ## Keyboard Shortcuts
 
-PaperWM uses `Ctrl + Option` (⌃⌥) as the default modifier to avoid conflicts with native macOS shortcuts.
+Paperframe uses `Ctrl + Option` (⌃⌥) as the default modifier to avoid conflicts with native macOS shortcuts.
 
 ### Navigation
 
@@ -152,8 +152,8 @@ Workspace state (window positions, active workspace) is automatically saved and 
 
 If windows aren't being managed:
 1. Open System Settings → Privacy & Security → Accessibility
-2. Enable PaperWM in the list
-3. Restart PaperWM
+2. Enable Paperframe in the list
+3. Restart Paperframe
 
 ### Config Not Loading
 
@@ -164,7 +164,7 @@ Check that your config file is valid JSON. You can validate it against the schem
 cat ~/.config/paperframe/config.json | python3 -m json.tool > /dev/null && echo "Valid JSON"
 ```
 
-## Removing PaperWM
+## Removing Paperframe
 
 1. Quit the app
 2. Remove `~/.config/paperframe/` directory (optional, removes custom config)

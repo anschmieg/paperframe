@@ -1,13 +1,13 @@
 import Foundation
 import PaperWMCore
 
-/// Configuration manager for PaperWM
+/// Configuration manager for Paperframe
 /// Loads config from JSON file with schema validation
 @MainActor
-public final class PaperWMConfig: ObservableObject {
+public final class PaperframeConfig: ObservableObject {
 
     /// Global config instance
-    public static let shared = PaperWMConfig()
+    public static let shared = PaperframeConfig()
 
     /// Current configuration
     @Published public private(set) var config: Config

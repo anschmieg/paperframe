@@ -235,5 +235,5 @@ Add to `config.json`:
 1. Implement window focus tracking in WorldState
 2. Add `moveWindow` command to CommandRouter
 3. Wire up `Ctrl+Opt+Shift+Arrow` shortcuts
-4. Update config schema and PaperWMConfig
+4. Update config schema and PaperframeConfig
 5. Add HUD feedback for window movement

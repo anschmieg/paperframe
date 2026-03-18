@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "PaperWM Configuration",
-  "description": "Configuration schema for PaperWM window manager",
+  "title": "Paperframe Configuration",
+  "description": "Configuration schema for Paperframe window manager",
   "type": "object",
   "properties": {
     "version": {
