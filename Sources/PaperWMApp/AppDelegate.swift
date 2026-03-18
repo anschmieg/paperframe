@@ -290,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     let confirm = NSAlert()
-    confirm.messageText = "Remove "\(displayLabel)"?"
+    confirm.messageText = "Remove \"\(displayLabel)\"?"
     confirm.informativeText = "This workspace will be removed. This action cannot be undone."
     confirm.addButton(withTitle: "Remove")
     confirm.addButton(withTitle: "Cancel")
@@ -298,6 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     commandRouter.route(command: .removeWorkspace(workspaceID: current.workspaceID))
   }
+}
 
 // MARK: - WorkspaceSwitchPayload
 
