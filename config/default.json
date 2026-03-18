@@ -23,7 +23,18 @@
     "showSwitcher": { "key": "/", "modifiers": ["ctrl", "option"] },
     "hideWindow": { "key": "h", "modifiers": ["ctrl", "option"] },
     "toggleFullscreen": { "key": "f", "modifiers": ["ctrl", "option"] },
-    "toggleFloat": { "key": "t", "modifiers": ["ctrl", "option"] }
+    "toggleFloat": { "key": "t", "modifiers": ["ctrl", "option"] },
+    "moveWindowLeft": { "key": "leftArrow", "modifiers": ["ctrl", "option", "shift"] },
+    "moveWindowRight": { "key": "rightArrow", "modifiers": ["ctrl", "option", "shift"] },
+    "moveWindowUp": { "key": "upArrow", "modifiers": ["ctrl", "option", "shift"] },
+    "moveWindowDown": { "key": "downArrow", "modifiers": ["ctrl", "option", "shift"] },
+    "focusNextWindow": { "key": "tab", "modifiers": ["ctrl", "option"] },
+    "focusPrevWindow": { "key": "tab", "modifiers": ["ctrl", "option", "shift"] },
+    "shrinkWindowH": { "key": "h", "modifiers": ["ctrl", "option", "shift"] },
+    "expandWindowH": { "key": "l", "modifiers": ["ctrl", "option", "shift"] },
+    "shrinkWindowV": { "key": "j", "modifiers": ["ctrl", "option", "shift"] },
+    "expandWindowV": { "key": "k", "modifiers": ["ctrl", "option", "shift"] },
+    "closeWindow": { "key": "w", "modifiers": ["ctrl", "option"] }
   },
   "behavior": {
     "autoCreateWorkspace": false,

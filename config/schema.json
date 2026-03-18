@@ -114,6 +114,41 @@
           "$ref": "#/definitions/keyBinding",
           "default": { "key": "t", "modifiers": ["ctrl", "option"] },
           "description": "Toggle floating"
+        },
+        "moveWindowLeft": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "leftArrow", "modifiers": ["ctrl", "option", "shift"] },
+          "description": "Move focused window to workspace on the left"
+        },
+        "moveWindowRight": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "rightArrow", "modifiers": ["ctrl", "option", "shift"] },
+          "description": "Move focused window to workspace on the right"
+        },
+        "moveWindowUp": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "upArrow", "modifiers": ["ctrl", "option", "shift"] },
+          "description": "Move focused window to workspace above"
+        },
+        "moveWindowDown": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "downArrow", "modifiers": ["ctrl", "option", "shift"] },
+          "description": "Move focused window to workspace below"
+        },
+        "focusNextWindow": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "tab", "modifiers": ["ctrl", "option"] },
+          "description": "Focus next window in current workspace"
+        },
+        "focusPrevWindow": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "tab", "modifiers": ["ctrl", "option", "shift"] },
+          "description": "Focus previous window in current workspace"
+        },
+        "closeWindow": {
+          "$ref": "#/definitions/keyBinding",
+          "default": { "key": "w", "modifiers": ["ctrl", "option"] },
+          "description": "Close focused window"
         }
       }
     },

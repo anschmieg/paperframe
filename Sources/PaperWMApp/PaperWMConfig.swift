@@ -40,7 +40,18 @@ public final class PaperframeConfig: ObservableObject {
             showSwitcher: KeyBinding(key: .slash, modifiers: [.ctrl, .option]),
             hideWindow: KeyBinding(key: .h, modifiers: [.ctrl, .option]),
             toggleFullscreen: KeyBinding(key: .f, modifiers: [.ctrl, .option]),
-            toggleFloat: KeyBinding(key: .t, modifiers: [.ctrl, .option])
+            toggleFloat: KeyBinding(key: .t, modifiers: [.ctrl, .option]),
+            moveWindowLeft: KeyBinding(key: .leftArrow, modifiers: [.ctrl, .option, .shift]),
+            moveWindowRight: KeyBinding(key: .rightArrow, modifiers: [.ctrl, .option, .shift]),
+            moveWindowUp: KeyBinding(key: .upArrow, modifiers: [.ctrl, .option, .shift]),
+            moveWindowDown: KeyBinding(key: .downArrow, modifiers: [.ctrl, .option, .shift]),
+            focusNextWindow: KeyBinding(key: .tab, modifiers: [.ctrl, .option]),
+            focusPrevWindow: KeyBinding(key: .tab, modifiers: [.ctrl, .option, .shift]),
+            shrinkWindowH: KeyBinding(key: .h, modifiers: [.ctrl, .option, .shift]),
+            expandWindowH: KeyBinding(key: .l, modifiers: [.ctrl, .option, .shift]),
+            shrinkWindowV: KeyBinding(key: .j, modifiers: [.ctrl, .option, .shift]),
+            expandWindowV: KeyBinding(key: .k, modifiers: [.ctrl, .option, .shift]),
+            closeWindow: KeyBinding(key: .w, modifiers: [.ctrl, .option])
         ),
         behavior: BehaviorConfig(
             autoCreateWorkspace: false,
@@ -173,6 +184,18 @@ public struct ShortcutsConfig: Codable {
     public var hideWindow: KeyBinding
     public var toggleFullscreen: KeyBinding
     public var toggleFloat: KeyBinding
+    // Window management shortcuts
+    public var moveWindowLeft: KeyBinding
+    public var moveWindowRight: KeyBinding
+    public var moveWindowUp: KeyBinding
+    public var moveWindowDown: KeyBinding
+    public var focusNextWindow: KeyBinding
+    public var focusPrevWindow: KeyBinding
+    public var shrinkWindowH: KeyBinding
+    public var expandWindowH: KeyBinding
+    public var shrinkWindowV: KeyBinding
+    public var expandWindowV: KeyBinding
+    public var closeWindow: KeyBinding
 
     public init(
         modifier: ModifierMode = .ctrlOption,
@@ -196,7 +219,18 @@ public struct ShortcutsConfig: Codable {
         showSwitcher: KeyBinding = KeyBinding(key: .slash, modifiers: [.ctrl, .option]),
         hideWindow: KeyBinding = KeyBinding(key: .h, modifiers: [.ctrl, .option]),
         toggleFullscreen: KeyBinding = KeyBinding(key: .f, modifiers: [.ctrl, .option]),
-        toggleFloat: KeyBinding = KeyBinding(key: .t, modifiers: [.ctrl, .option])
+        toggleFloat: KeyBinding = KeyBinding(key: .t, modifiers: [.ctrl, .option]),
+        moveWindowLeft: KeyBinding = KeyBinding(key: .leftArrow, modifiers: [.ctrl, .option, .shift]),
+        moveWindowRight: KeyBinding = KeyBinding(key: .rightArrow, modifiers: [.ctrl, .option, .shift]),
+        moveWindowUp: KeyBinding = KeyBinding(key: .upArrow, modifiers: [.ctrl, .option, .shift]),
+        moveWindowDown: KeyBinding = KeyBinding(key: .downArrow, modifiers: [.ctrl, .option, .shift]),
+        focusNextWindow: KeyBinding = KeyBinding(key: .tab, modifiers: [.ctrl, .option]),
+        focusPrevWindow: KeyBinding = KeyBinding(key: .tab, modifiers: [.ctrl, .option, .shift]),
+        shrinkWindowH: KeyBinding = KeyBinding(key: .h, modifiers: [.ctrl, .option, .shift]),
+        expandWindowH: KeyBinding = KeyBinding(key: .l, modifiers: [.ctrl, .option, .shift]),
+        shrinkWindowV: KeyBinding = KeyBinding(key: .j, modifiers: [.ctrl, .option, .shift]),
+        expandWindowV: KeyBinding = KeyBinding(key: .k, modifiers: [.ctrl, .option, .shift]),
+        closeWindow: KeyBinding = KeyBinding(key: .w, modifiers: [.ctrl, .option])
     ) {
         self.modifier = modifier
         self.switchWorkspaceLeft = switchWorkspaceLeft
@@ -220,6 +254,17 @@ public struct ShortcutsConfig: Codable {
         self.hideWindow = hideWindow
         self.toggleFullscreen = toggleFullscreen
         self.toggleFloat = toggleFloat
+        self.moveWindowLeft = moveWindowLeft
+        self.moveWindowRight = moveWindowRight
+        self.moveWindowUp = moveWindowUp
+        self.moveWindowDown = moveWindowDown
+        self.focusNextWindow = focusNextWindow
+        self.focusPrevWindow = focusPrevWindow
+        self.shrinkWindowH = shrinkWindowH
+        self.expandWindowH = expandWindowH
+        self.shrinkWindowV = shrinkWindowV
+        self.expandWindowV = expandWindowV
+        self.closeWindow = closeWindow
     }
 }
 
