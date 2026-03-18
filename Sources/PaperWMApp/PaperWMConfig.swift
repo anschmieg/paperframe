@@ -24,17 +24,15 @@ public final class PaperWMConfig: ObservableObject {
             switchWorkspaceRight: KeyBinding(key: .rightArrow, modifiers: [.ctrl, .option]),
             switchWorkspaceUp: KeyBinding(key: .upArrow, modifiers: [.ctrl, .option]),
             switchWorkspaceDown: KeyBinding(key: .downArrow, modifiers: [.ctrl, .option]),
-            goToWorkspaces: [
-                KeyBinding(key: .one, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .two, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .three, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .four, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .five, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .six, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .seven, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .eight, modifiers: [.ctrl, .option]),
-                KeyBinding(key: .nine, modifiers: [.ctrl, .option])
-            ],
+            goToWorkspace1: KeyBinding(key: .one, modifiers: [.ctrl, .option]),
+            goToWorkspace2: KeyBinding(key: .two, modifiers: [.ctrl, .option]),
+            goToWorkspace3: KeyBinding(key: .three, modifiers: [.ctrl, .option]),
+            goToWorkspace4: KeyBinding(key: .four, modifiers: [.ctrl, .option]),
+            goToWorkspace5: KeyBinding(key: .five, modifiers: [.ctrl, .option]),
+            goToWorkspace6: KeyBinding(key: .six, modifiers: [.ctrl, .option]),
+            goToWorkspace7: KeyBinding(key: .seven, modifiers: [.ctrl, .option]),
+            goToWorkspace8: KeyBinding(key: .eight, modifiers: [.ctrl, .option]),
+            goToWorkspace9: KeyBinding(key: .nine, modifiers: [.ctrl, .option]),
             newWorkspace: KeyBinding(key: .n, modifiers: [.ctrl, .option]),
             renameWorkspace: KeyBinding(key: .r, modifiers: [.ctrl, .option]),
             removeWorkspace: KeyBinding(key: .delete, modifiers: [.ctrl, .option]),
@@ -67,10 +65,10 @@ public final class PaperWMConfig: ObservableObject {
 
     /// Initialize config from file or defaults
     public init() {
-        // Determine config location: ~/Library/Application Support/PaperWM/config.json
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let paperWMDir = appSupport.appendingPathComponent("PaperWM", isDirectory: true)
-        self.configURL = paperWMDir.appendingPathComponent("config.json")
+        // Determine config location: ~/.config/paperframe/config.json (XDG Base Directory spec)
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let configDir = homeDir.appendingPathComponent(".config/paperframe", isDirectory: true)
+        self.configURL = configDir.appendingPathComponent("config.json")
 
         // Load or create default
         self.config = Self.loadConfig(from: configURL) ?? Self.defaultConfig
@@ -149,7 +147,15 @@ public struct ShortcutsConfig: Codable {
     public var switchWorkspaceRight: KeyBinding
     public var switchWorkspaceUp: KeyBinding
     public var switchWorkspaceDown: KeyBinding
-    public var goToWorkspaces: [KeyBinding]
+    public var goToWorkspace1: KeyBinding
+    public var goToWorkspace2: KeyBinding
+    public var goToWorkspace3: KeyBinding
+    public var goToWorkspace4: KeyBinding
+    public var goToWorkspace5: KeyBinding
+    public var goToWorkspace6: KeyBinding
+    public var goToWorkspace7: KeyBinding
+    public var goToWorkspace8: KeyBinding
+    public var goToWorkspace9: KeyBinding
     public var newWorkspace: KeyBinding
     public var renameWorkspace: KeyBinding
     public var removeWorkspace: KeyBinding
@@ -165,7 +171,15 @@ public struct ShortcutsConfig: Codable {
         switchWorkspaceRight: KeyBinding = KeyBinding(key: .rightArrow, modifiers: [.ctrl, .option]),
         switchWorkspaceUp: KeyBinding = KeyBinding(key: .upArrow, modifiers: [.ctrl, .option]),
         switchWorkspaceDown: KeyBinding = KeyBinding(key: .downArrow, modifiers: [.ctrl, .option]),
-        goToWorkspaces: [KeyBinding] = [],
+        goToWorkspace1: KeyBinding = KeyBinding(key: .one, modifiers: [.ctrl, .option]),
+        goToWorkspace2: KeyBinding = KeyBinding(key: .two, modifiers: [.ctrl, .option]),
+        goToWorkspace3: KeyBinding = KeyBinding(key: .three, modifiers: [.ctrl, .option]),
+        goToWorkspace4: KeyBinding = KeyBinding(key: .four, modifiers: [.ctrl, .option]),
+        goToWorkspace5: KeyBinding = KeyBinding(key: .five, modifiers: [.ctrl, .option]),
+        goToWorkspace6: KeyBinding = KeyBinding(key: .six, modifiers: [.ctrl, .option]),
+        goToWorkspace7: KeyBinding = KeyBinding(key: .seven, modifiers: [.ctrl, .option]),
+        goToWorkspace8: KeyBinding = KeyBinding(key: .eight, modifiers: [.ctrl, .option]),
+        goToWorkspace9: KeyBinding = KeyBinding(key: .nine, modifiers: [.ctrl, .option]),
         newWorkspace: KeyBinding = KeyBinding(key: .n, modifiers: [.ctrl, .option]),
         renameWorkspace: KeyBinding = KeyBinding(key: .r, modifiers: [.ctrl, .option]),
         removeWorkspace: KeyBinding = KeyBinding(key: .delete, modifiers: [.ctrl, .option]),
@@ -180,7 +194,15 @@ public struct ShortcutsConfig: Codable {
         self.switchWorkspaceRight = switchWorkspaceRight
         self.switchWorkspaceUp = switchWorkspaceUp
         self.switchWorkspaceDown = switchWorkspaceDown
-        self.goToWorkspaces = goToWorkspaces
+        self.goToWorkspace1 = goToWorkspace1
+        self.goToWorkspace2 = goToWorkspace2
+        self.goToWorkspace3 = goToWorkspace3
+        self.goToWorkspace4 = goToWorkspace4
+        self.goToWorkspace5 = goToWorkspace5
+        self.goToWorkspace6 = goToWorkspace6
+        self.goToWorkspace7 = goToWorkspace7
+        self.goToWorkspace8 = goToWorkspace8
+        self.goToWorkspace9 = goToWorkspace9
         self.newWorkspace = newWorkspace
         self.renameWorkspace = renameWorkspace
         self.removeWorkspace = removeWorkspace
