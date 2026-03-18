@@ -207,10 +207,147 @@ final class VisualIndicatorController {
 
     // MARK: - Mini-Map (Radar)
 
+    /// Shows the mini-map overlay showing all workspaces and current viewport
     func showMinimap() {
-        // TODO: Implement full mini-map
-        // For now, just show a placeholder
-        showHUD(message: "Mini-Map", detail: "Coming soon")
+        // Close existing if any
+        minimapWindow?.close()
+
+        // Get topology and world state
+        let topology = displayAdapter.currentTopology()
+        guard let primaryDisplay = topology.displays.first else { return }
+
+        let workspaces = worldState.allWorkspaces(for: primaryDisplay.displayID)
+        guard !workspaces.isEmpty else { return }
+
+        // Calculate window size based on workspace count
+        let cols = min(workspaces.count, 4)
+        let rows = (workspaces.count + cols - 1) / cols
+        let cellWidth: CGFloat = 100
+        let cellHeight: CGFloat = 70
+        let padding: CGFloat = 10
+        let headerHeight: CGFloat = 40
+
+        let windowWidth = CGFloat(cols) * (cellWidth + padding) + padding
+        let windowHeight = CGFloat(rows) * (cellHeight + padding) + padding + headerHeight + 40
+
+        // Create window
+        let minimap = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: windowHeight),
+            styleMask: [.borderless, .titled],
+            backing: .buffered,
+            defer: false
+        )
+        minimap.level = .floating
+        minimap.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95)
+        minimap.isOpaque = false
+        minimap.title = "Workspace Overview"
+        minimap.titlebarAppearsTransparent = true
+
+        // Center on screen
+        if let screen = NSScreen.main {
+            let screenFrame = screen.visibleFrame
+            let x = screenFrame.midX - windowWidth / 2
+            let y = screenFrame.midY - windowHeight / 2 + 50
+            minimap.setFrameOrigin(NSPoint(x: x, y: y))
+        }
+
+        let content = NSView(frame: minimap.contentView!.bounds)
+        content.wantsLayer = true
+        content.layer?.cornerRadius = 12
+        content.layer?.masksToBounds = true
+        content.layer?.borderWidth = 1
+        content.layer?.borderColor = NSColor.separatorColor.cgColor
+        minimap.contentView = content
+
+        // Title label
+        let titleLabel = NSTextField(labelWithString: "PaperWM Workspaces")
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = NSColor.labelColor
+        titleLabel.frame = NSRect(x: padding, y: windowHeight - 30, width: windowWidth - padding * 2, height: 20)
+        content.addSubview(titleLabel)
+
+        // Current workspace info
+        let activeWorkspace = worldState.activeWorkspace(for: primaryDisplay.displayID)
+        let activeIndex = workspaces.firstIndex { $0.workspaceID == activeWorkspace?.workspaceID } ?? 0
+        let infoText = "Current: \(workspaces[activeIndex].label ?? "Workspace \(activeIndex + 1)") (\(activeIndex + 1)/\(workspaces.count))"
+        let infoLabel = NSTextField(labelWithString: infoText)
+        infoLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        infoLabel.textColor = NSColor.secondaryLabelColor
+        infoLabel.frame = NSRect(x: padding, y: windowHeight - 48, width: windowWidth - padding * 2, height: 16)
+        content.addSubview(infoLabel)
+
+        // Draw workspace cells
+        for (index, workspace) in workspaces.enumerated() {
+            let col = index % cols
+            let row = index / cols
+            let cellX = padding + CGFloat(col) * (cellWidth + padding)
+            let cellY = padding + CGFloat(rows - 1 - row) * (cellHeight + padding)
+
+            let isActive = workspace.workspaceID == activeWorkspace?.workspaceID
+            drawWorkspaceCell(
+                in: content,
+                workspace: workspace,
+                index: index,
+                frame: NSRect(x: cellX, y: cellY, width: cellWidth, height: cellHeight),
+                isActive: isActive
+            )
+        }
+
+        // Add instruction label
+        let instructionLabel = NSTextField(labelWithString: "← → to switch  |  Esc to close")
+        instructionLabel.font = NSFont.systemFont(ofSize: 10)
+        instructionLabel.textColor = NSColor.tertiaryLabelColor
+        instructionLabel.alignment = .center
+        instructionLabel.frame = NSRect(x: padding, y: 8, width: windowWidth - padding * 2, height: 14)
+        content.addSubview(instructionLabel)
+
+        minimap.orderFront(nil)
+        self.minimapWindow = minimap
+    }
+
+    private func drawWorkspaceCell(
+        in parent: NSView,
+        workspace: WorkspaceState,
+        index: Int,
+        frame: NSRect,
+        isActive: Bool
+    ) {
+        let cellView = NSView(frame: frame)
+        cellView.wantsLayer = true
+        cellView.layer?.cornerRadius = 6
+        cellView.layer?.borderWidth = isActive ? 2 : 1
+        cellView.layer?.borderColor = isActive
+            ? NSColor.controlAccentColor.cgColor
+            : NSColor.separatorColor.cgColor
+        cellView.layer?.backgroundColor = isActive
+            ? NSColor.controlAccentColor.withAlphaComponent(0.1).cgColor
+            : NSColor.controlBackgroundColor.cgColor
+        parent.addSubview(cellView)
+
+        // Workspace number
+        let numberLabel = NSTextField(labelWithString: "\(index + 1)")
+        numberLabel.font = NSFont.systemFont(ofSize: 20, weight: .bold)
+        numberLabel.textColor = isActive ? NSColor.controlAccentColor : NSColor.secondaryLabelColor
+        numberLabel.frame = NSRect(x: 8, y: frame.height - 28, width: 30, height: 24)
+        cellView.addSubview(numberLabel)
+
+        // Workspace name (label or default)
+        let name = workspace.label ?? "Workspace \(index + 1)"
+        let nameLabel = NSTextField(labelWithString: name)
+        nameLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        nameLabel.textColor = NSColor.labelColor
+        nameLabel.frame = NSRect(x: 8, y: frame.height - 44, width: frame.width - 16, height: 14)
+        nameLabel.lineBreakMode = .byTruncatingTail
+        cellView.addSubview(nameLabel)
+
+        // Viewport indicator (simplified - just shows it's active or not)
+        if isActive {
+            let indicator = NSTextField(labelWithString: "●")
+            indicator.font = NSFont.systemFont(ofSize: 10)
+            indicator.textColor = NSColor.controlAccentColor
+            indicator.frame = NSRect(x: frame.width - 20, y: frame.height - 20, width: 12, height: 12)
+            cellView.addSubview(indicator)
+        }
     }
 
     func hideMinimap() {

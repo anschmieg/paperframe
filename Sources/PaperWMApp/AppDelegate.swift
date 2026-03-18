@@ -44,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private let diagnostics = DiagnosticsServiceStub()
   private let worldState: WorldStateStub
   private let planner = TilingProjectionPlanner()
+  private var visualController: VisualIndicatorController!
+  private var visualIndicators: VisualIndicatorController!
 
   // MARK: - Runtime pipeline (lazy to allow ordered initialization)
 
@@ -136,6 +138,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     statusItem?.button?.title = "⬜ PaperWM"
     statusItem?.button?.toolTip = "PaperWM window manager"
+
+    // Initialize visual indicator controller
+    visualController = VisualIndicatorController(
+      statusItem: statusItem!,
+      worldState: worldState,
+      displayAdapter: displayAdapter
+    )
 
     let menu = NSMenu()
     menu.addItem(withTitle: "About PaperWM", action: #selector(showAbout), keyEquivalent: "")
@@ -279,6 +288,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let newLabel: String? = trimmed.isEmpty ? nil : trimmed
     commandRouter.route(
       command: .renameWorkspace(workspaceID: payload.workspaceID, newLabel: newLabel))
+    visualController.updateMenuBarIndicator()
+    let displayLabel = newLabel ?? "workspace"
+    visualController.showHUD(message: "Renamed to \"\(displayLabel)\"")
   }
 
   /// Presents a confirmation dialog and removes a specific workspace identified by the
@@ -315,6 +327,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard confirm.runModal() == .alertFirstButtonReturn else { return }
 
     commandRouter.route(command: .removeWorkspace(workspaceID: payload.workspaceID))
+    visualController.updateMenuBarIndicator()
+    visualController.showHUD(message: "Removed workspace")
   }
 
   /// Presents a label-prompt dialog and creates a new workspace on a specific display
@@ -340,6 +354,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
     let label: String? = trimmed.isEmpty ? nil : trimmed
     commandRouter.route(command: .createWorkspace(displayID: payload.displayID, label: label))
+    visualController.updateMenuBarIndicator()
+    let msg = label != nil ? "Created \"\(label!)\"" : "Created workspace"
+    visualController.showHUD(message: msg)
   }
 
   // MARK: - Keyboard shortcut actions (Milestone 18)
@@ -370,6 +387,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
     let label: String? = trimmed.isEmpty ? nil : trimmed
     commandRouter.route(command: .createWorkspace(displayID: mainDisplay.displayID, label: label))
+    visualController.updateMenuBarIndicator()
+    let workspaceName = label ?? "Workspace"
+    visualController.showHUD(message: "Created \(workspaceName)")
   }
 
   /// Renames the current (active) workspace via keyboard shortcut.
@@ -413,6 +433,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let newLabel: String? = trimmed.isEmpty ? nil : trimmed
     commandRouter.route(
       command: .renameWorkspace(workspaceID: current.workspaceID, newLabel: newLabel))
+    visualController.updateMenuBarIndicator()
+    let displayLabel = newLabel ?? "workspace"
+    visualController.showHUD(message: "Renamed to \"\(displayLabel)\"")
   }
 
   /// Removes the current (active) workspace via keyboard shortcut.
