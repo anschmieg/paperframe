@@ -69,10 +69,69 @@ public final class CommandRouter: CommandRouterProtocol {
         case .refreshInventory:
             await reconciliationCoordinator.reconcile(reason: .manualRefresh)
 
-        case .focusWindow, .moveWindow, .resizeWindow, .minimizeWindow,
-            .unminimizeWindow, .cycleWindows, .toggleFullscreen:
+        case .moveWindow(let windowID, let direction):
+            await moveWindow(windowID: windowID, direction: direction)
+
+        case .focusWindow:
+            // TODO: Implement focus window tracking
+            break
+
+        case .resizeWindow, .minimizeWindow, .unminimizeWindow, .cycleWindows, .toggleFullscreen:
             // TODO: Route to the appropriate coordinator when implemented.
             break
         }
+    }
+
+    // MARK: - Window Movement
+
+    /// Moves a window to an adjacent workspace in the given direction.
+    ///
+    /// The window is removed from its current workspace and added to the target workspace.
+    /// Workspaces are ordered by UUID string; "left" moves to the previous workspace,
+    /// "right" moves to the next workspace.
+    ///
+    /// - Parameters:
+    ///   - windowID: The window to move.
+    ///   - direction: The direction to move (left/right for workspace navigation).
+    private func moveWindow(windowID: ManagedWindowID, direction: Direction) async {
+        // Get the window's current state to find which workspace it belongs to
+        guard let windowState = worldState.paperWindowState(for: windowID) else { return }
+
+        let currentWorkspaceID = windowState.workspaceID
+
+        // Get all displays that have workspaces
+        let displayIDs = worldState.allDisplayIDs()
+
+        // For Phase 1 (single display), use the first display
+        // TODO: In multi-display mode, determine which display the window is on
+        guard let displayID = displayIDs.first else { return }
+
+        // Get ordered workspaces for this display
+        let orderedWorkspaceIDs = worldState.orderedWorkspaceIDs(for: displayID)
+
+        // Find current workspace index
+        guard let currentIndex = orderedWorkspaceIDs.firstIndex(of: currentWorkspaceID) else {
+            return
+        }
+
+        // Calculate target index based on direction
+        let targetIndex: Int
+        switch direction {
+        case .left, .up:
+            targetIndex = max(0, currentIndex - 1)
+        case .right, .down:
+            targetIndex = min(orderedWorkspaceIDs.count - 1, currentIndex + 1)
+        }
+
+        // If same workspace, no-op
+        guard targetIndex != currentIndex else { return }
+
+        let targetWorkspaceID = orderedWorkspaceIDs[targetIndex]
+
+        // Move the window
+        worldState.moveWindow(windowID, toWorkspace: targetWorkspaceID)
+
+        // Trigger reconciliation to apply the change
+        await reconciliationCoordinator.reconcile(reason: .userCommand(.moveWindow(windowID, direction: direction)))
     }
 }

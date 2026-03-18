@@ -37,6 +37,9 @@ public final class WorldStateStub: WorldStateProtocol {
     /// The active workspace ID for each display.
     private var activeWorkspaceIDs: [DisplayID: WorkspaceID] = [:]
 
+    /// The currently focused window ID, if any.
+    public var focusedWindowID: ManagedWindowID?
+
     // MARK: - Persistence
 
     private let persistenceStore: (any WorldStatePersistenceStoreProtocol)?
@@ -105,6 +108,13 @@ public final class WorldStateStub: WorldStateProtocol {
         workspaceStorage.values.filter { $0.displayID == displayID }
     }
 
+    /// Returns all display IDs that have at least one workspace registered.
+    public func allDisplayIDs() -> [DisplayID] {
+        // Get unique display IDs from all workspaces
+        let displayIDs = Set(workspaceStorage.values.map { $0.displayID })
+        return Array(displayIDs)
+    }
+
     /// Renames the workspace identified by `workspaceID`.
     ///
     /// Normalises the label: whitespace-only strings are treated as `nil` so that
@@ -163,6 +173,35 @@ public final class WorldStateStub: WorldStateProtocol {
         }
 
         workspaceStorage.removeValue(forKey: workspaceID)
+        persist()
+        return true
+    }
+
+    /// Returns all workspace IDs for a display, sorted by UUID string order.
+    public func orderedWorkspaceIDs(for displayID: DisplayID) -> [WorkspaceID] {
+        allWorkspaces(for: displayID)
+            .sorted { $0.workspaceID.rawValue.uuidString < $1.workspaceID.rawValue.uuidString }
+            .map { $0.workspaceID }
+    }
+
+    /// Moves a window from its current workspace to a target workspace.
+    @discardableResult
+    public func moveWindow(_ windowID: ManagedWindowID, toWorkspace targetWorkspaceID: WorkspaceID) -> Bool {
+        // Verify target workspace exists
+        guard workspaceStorage[targetWorkspaceID] != nil else { return false }
+
+        // Get current window state
+        guard var windowState = paperWindowStates[windowID] else { return false }
+
+        // Update window's workspace
+        windowState.workspaceID = targetWorkspaceID
+        paperWindowStates[windowID] = windowState
+
+        // Update focused window if needed
+        if focusedWindowID == windowID {
+            focusedWindowID = windowID // Keep focus on moved window
+        }
+
         persist()
         return true
     }

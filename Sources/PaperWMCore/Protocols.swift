@@ -55,6 +55,9 @@ public protocol WorldStateProtocol: AnyObject {
     /// Upserts the paper-space state for a window.
     func updatePaperWindowState(_ state: PaperWindowState)
 
+    /// The currently focused window ID, or nil if no window is focused.
+    var focusedWindowID: ManagedWindowID? { get set }
+
     /// Returns the active workspace for the given display.
     func activeWorkspace(for displayID: DisplayID) -> WorkspaceState?
     /// Updates the workspace state for a display.
@@ -71,6 +74,11 @@ public protocol WorldStateProtocol: AnyObject {
 
     /// Returns all workspaces registered for `displayID`, in unspecified order.
     func allWorkspaces(for displayID: DisplayID) -> [WorkspaceState]
+
+    /// Returns all display IDs that have at least one workspace registered.
+    ///
+    /// This is useful for iterating over displays in multi-display scenarios.
+    func allDisplayIDs() -> [DisplayID]
 
     /// Renames the workspace identified by `workspaceID`.
     ///
@@ -110,6 +118,23 @@ public protocol WorldStateProtocol: AnyObject {
     /// - Returns: `true` when the workspace was removed; `false` otherwise.
     @discardableResult
     func removeWorkspace(_ workspaceID: WorkspaceID) -> Bool
+
+    /// Returns all workspace IDs for a display, sorted by UUID string order.
+    ///
+    /// This provides a deterministic ordering for workspace navigation.
+    /// - Parameter displayID: The display to get workspaces for.
+    /// - Returns: Workspace IDs in sorted order.
+    func orderedWorkspaceIDs(for displayID: DisplayID) -> [WorkspaceID]
+
+    /// Moves a window from its current workspace to a target workspace.
+    ///
+    /// - Parameters:
+    ///   - windowID: The window to move.
+    ///   - targetWorkspaceID: The destination workspace.
+    /// - Returns: `true` if the move succeeded; `false` if the window or target
+    ///   workspace doesn't exist.
+    @discardableResult
+    func moveWindow(_ windowID: ManagedWindowID, toWorkspace targetWorkspaceID: WorkspaceID) -> Bool
 }
 
 // MARK: - ProjectionPlanner
