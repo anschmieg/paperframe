@@ -71,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     setupStatusItem()
+    checkPermissionsAndShowOnboarding()
     diagnostics.record(event: .displayTopologyChanged)
 
     // Perform the initial reconciliation pass.
@@ -78,8 +79,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       _ = await coordinator.reconcile(reason: .startupInitialization)
     }
 
-    // TODO: Check permissions and show onboarding if needed.
     // TODO: Start the observer/reconcile hub.
+  }
+
+  /// Checks permissions on launch and shows onboarding if Accessibility is not granted.
+  ///
+  /// This provides a better first-run experience by proactively informing users
+  /// that Accessibility permission is required for window management.
+  private func checkPermissionsAndShowOnboarding() {
+    let state = permissions.currentState
+
+    // Only show onboarding if Accessibility is not granted.
+    guard !state.accessibilityAvailable else { return }
+
+    let alert = NSAlert()
+    alert.messageText = "Accessibility Permission Required"
+    alert.informativeText = """
+      PaperWM needs Accessibility permission to manage windows.
+
+      Without this permission, the app runs in reduced mode and cannot:
+      • Discover or enumerate windows
+      • Move, resize, or focus windows
+      • Perform automatic tiling
+
+      Grant permission in System Settings to enable full functionality.
+      """
+    alert.addButton(withTitle: "Open System Settings")
+    alert.addButton(withTitle: "Later")
+
+    if alert.runModal() == .alertFirstButtonReturn {
+      permissions.requestAccessibilityPermission()
+    }
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -114,6 +144,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       withTitle: "Remove Current Workspace",
       action: #selector(removeCurrentWorkspace(_:)),
       keyEquivalent: "\u{08}")  // Backspace key
+    menu.addItem(.separator())
+
+    // Permissions / onboarding (Milestone 19: validation pass)
+    menu.addItem(withTitle: "Check Permissions…", action: #selector(showPermissions(_:)), keyEquivalent: "")
 
     // TODO: Add layout commands (move, resize, cycle, etc.)
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
@@ -156,6 +190,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     alert.informativeText = msg
     alert.addButton(withTitle: "OK")
     _ = alert.runModal()
+  }
+
+  /// Shows permissions status and allows user to request Accessibility permission.
+  /// Also performs initial onboarding check on first launch.
+  @objc private func showPermissions(_ sender: Any?) {
+    // Refresh permission state to get current status
+    permissions.refresh()
+    let state = permissions.currentState
+
+    var msg = "Accessibility: \(state.accessibility == .granted ? "✓ Granted" : "✗ Not Granted")\n"
+    msg += "Input Monitoring: \(state.inputMonitoring == .granted ? "✓ Granted" : "⚠ Not Required for Basic Features")\n\n"
+
+    if state.isReducedMode {
+      msg += "PaperWM is running in reduced mode because Accessibility permission is not granted.\n\n"
+      msg += "Without Accessibility permission, PaperWM cannot manage windows. Please grant permission to enable full functionality.\n\n"
+      msg += "Click 'Open System Settings' to grant permission, then restart PaperWM."
+    } else {
+      msg += "All required permissions are granted. PaperWM is fully functional."
+    }
+
+    let alert = NSAlert()
+    alert.messageText = "PaperWM Permissions"
+
+    if state.isReducedMode {
+      alert.informativeText = msg
+      alert.addButton(withTitle: "Open System Settings")
+      alert.addButton(withTitle: "Cancel")
+
+      if alert.runModal() == .alertFirstButtonReturn {
+        // Open Accessibility settings in System Settings
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+          NSWorkspace.shared.open(url)
+        }
+      }
+    } else {
+      alert.informativeText = msg
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+    }
   }
 
   /// Routes a workspace switch command through `CommandRouter`.

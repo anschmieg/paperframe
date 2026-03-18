@@ -52,17 +52,32 @@ public final class AXWindowMutator: WindowMutatorProtocol {
         let target = intent.targetFrame
 
         // Write position before size (macOS AX convention: position first).
+        var positionVerified = true
         if caps.canMove {
             guard axAdapter.setPosition(target.origin, of: element) else {
                 return .resistedByApp(windowID: windowID)
             }
+            // Verify the position was actually applied.
+            positionVerified = axAdapter.verifyPosition(target.origin, of: element)
         }
 
         // Write size.
+        var sizeVerified = true
         if caps.canResize {
             guard axAdapter.setSize(target.size, of: element) else {
                 return .resistedByApp(windowID: windowID)
             }
+            // Verify the size was actually applied.
+            sizeVerified = axAdapter.verifySize(target.size, of: element)
+        }
+
+        // Check if both position and size were verified successfully.
+        // Only require verification for the capabilities we attempted to change.
+        let positionRequired = caps.canMove
+        let sizeRequired = caps.canResize
+
+        if (positionRequired && !positionVerified) || (sizeRequired && !sizeVerified) {
+            return .resistedByApp(windowID: windowID)
         }
 
         return .success

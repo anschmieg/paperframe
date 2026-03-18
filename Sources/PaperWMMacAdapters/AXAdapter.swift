@@ -126,6 +126,31 @@ public final class AXAdapter {
         return err == .success
     }
 
+    /// Verifies the window's current position matches the expected position.
+    ///
+    /// Returns `true` if the position matches within a small tolerance (for floating-point).
+    /// Returns `false` if the position differs significantly (indicating the app may have
+    /// resisted the change or moved the window independently).
+    public func verifyPosition(_ expected: CGPoint, of windowElement: AXUIElement) -> Bool {
+        guard let actual = position(of: windowElement) else {
+            return false
+        }
+        let tolerance: CGFloat = 1.0
+        return abs(actual.x - expected.x) <= tolerance && abs(actual.y - expected.y) <= tolerance
+    }
+
+    /// Verifies the window's current size matches the expected size.
+    ///
+    /// Returns `true` if the size matches within a small tolerance.
+    /// Returns `false` if the size differs significantly.
+    public func verifySize(_ expected: CGSize, of windowElement: AXUIElement) -> Bool {
+        guard let actual = size(of: windowElement) else {
+            return false
+        }
+        let tolerance: CGFloat = 1.0
+        return abs(actual.width - expected.width) <= tolerance && abs(actual.height - expected.height) <= tolerance
+    }
+
     // MARK: - Capability probing
 
     /// Probes a window element for the capabilities the window manager can use.

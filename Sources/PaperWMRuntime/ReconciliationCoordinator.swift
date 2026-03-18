@@ -82,7 +82,15 @@ public final class ReconciliationCoordinator: ReconciliationTriggering {
     // 5. Execute the plan; the engine handles permission gating and AX writes.
     let executionReport = await engine.execute(plan: plan)
 
-    // 6. Record any placement failures so they appear in the diagnostics report.
+    // 6. Update paper window state after successful placements.
+    // This enables viewport-aware behavior in subsequent reconciliation passes.
+    updatePaperWindowStates(
+      appliedIntents: executionReport.appliedIntents,
+      snapshots: snapshots,
+      topology: topology
+    )
+
+    // 7. Record any placement failures so they appear in the diagnostics report.
     for result in executionReport.results {
       switch result {
       case .failed, .resistedByApp, .capabilityMissing:
@@ -102,6 +110,57 @@ public final class ReconciliationCoordinator: ReconciliationTriggering {
   }
 
   // MARK: - Private helpers
+
+  /// Updates paper window state after successful placement.
+  ///
+  /// This enables viewport-aware filtering in subsequent reconciliation passes.
+  /// Each window's paper position is stored based on where it was placed.
+  private func updatePaperWindowStates(
+    appliedIntents: [PlacementIntent],
+    snapshots: [ManagedWindowSnapshot],
+    topology: DisplayTopology
+  ) {
+    guard !appliedIntents.isEmpty else { return }
+
+    // Build lookup from windowID to snapshot for workspaceID resolution.
+    var snapshotByID: [ManagedWindowID: ManagedWindowSnapshot] = [:]
+    for snapshot in snapshots {
+      snapshotByID[snapshot.windowID] = snapshot
+    }
+
+    for intent in appliedIntents {
+      // Verify window still exists in current inventory.
+      guard snapshotByID[intent.windowID] != nil else { continue }
+
+      // Get the workspace ID from the active workspace for this display.
+      let workspaceID: WorkspaceID
+      if let workspace = worldState.activeWorkspace(for: intent.targetDisplayID) {
+        workspaceID = workspace.workspaceID
+      } else {
+        // No active workspace - use a default workspace ID.
+        workspaceID = WorkspaceID()
+      }
+
+      // Convert target frame to paper rect.
+      // For now, we use 1:1 mapping (paper unit = screen point).
+      // A proper implementation would apply viewport scale/origin transformation.
+      let paperRect = PaperRect(
+        x: Double(intent.targetFrame.origin.x),
+        y: Double(intent.targetFrame.origin.y),
+        width: Double(intent.targetFrame.size.width),
+        height: Double(intent.targetFrame.size.height)
+      )
+
+      let paperState = PaperWindowState(
+        windowID: intent.windowID,
+        paperRect: paperRect,
+        workspaceID: workspaceID,
+        mode: .tiled
+      )
+
+      worldState.updatePaperWindowState(paperState)
+    }
+  }
 
   /// Maps a `ReconcileReason` to a `WMEvent` for diagnostics recording.
   ///
