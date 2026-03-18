@@ -85,6 +85,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   // MARK: - NSApplicationDelegate
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    // Initialize config to ensure ~/.config/paperframe/ directory exists
+    _ = PaperWMConfig.shared
+
     setupStatusItem()
     checkPermissionsAndShowOnboarding()
     setupKeyboardShortcuts()

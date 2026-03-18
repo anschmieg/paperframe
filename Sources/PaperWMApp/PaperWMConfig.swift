@@ -70,8 +70,17 @@ public final class PaperWMConfig: ObservableObject {
         let configDir = homeDir.appendingPathComponent(".config/paperframe", isDirectory: true)
         self.configURL = configDir.appendingPathComponent("config.json")
 
-        // Load or create default
-        self.config = Self.loadConfig(from: configURL) ?? Self.defaultConfig
+        // Ensure config directory exists
+        try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+
+        // Load config or use defaults
+        if let loaded = Self.loadConfig(from: configURL) {
+            self.config = loaded
+        } else {
+            // No config file - use defaults and save them
+            self.config = Self.defaultConfig
+            save()
+        }
     }
 
     private static func loadConfig(from url: URL) -> Config? {
