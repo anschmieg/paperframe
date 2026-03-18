@@ -236,9 +236,35 @@ final class KeyboardShortcutHandler {
     }
 
     private func moveWindowToWorkspace(direction: Direction) {
-        // TODO: Implement window movement to another workspace
-        // For now, just show a message
-        visualController.showHUD(message: "Move window", detail: "Coming soon")
+        // Get the focused window
+        guard let focusedWindowID = worldState.focusedWindowID else {
+            visualController.showHUD(message: "No window selected", detail: "Click a window first")
+            return
+        }
+
+        // Map local Direction to PaperWMCore.Direction
+        let coreDirection: PaperWMCore.Direction
+        switch direction {
+        case .left: coreDirection = .left
+        case .right: coreDirection = .right
+        case .up: coreDirection = .up
+        case .down: coreDirection = .down
+        }
+
+        // Route the move window command
+        commandRouter.route(command: .moveWindow(focusedWindowID, direction: coreDirection))
+
+        // Show feedback
+        visualController.showHUD(message: "Window moved", detail: directionText(for: direction))
+    }
+
+    private func directionText(for direction: Direction) -> String {
+        switch direction {
+        case .left: return "to previous workspace"
+        case .right: return "to next workspace"
+        case .up: return "to workspace above"
+        case .down: return "to workspace below"
+        }
     }
 
     // MARK: - Types
