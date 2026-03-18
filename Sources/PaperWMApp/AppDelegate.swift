@@ -24,12 +24,25 @@ import PaperWMRuntime
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
+  // MARK: - Init
+
+  override init() {
+    // Initialize world state with JSON persistence for cross-launch state.
+    // Falls back to in-memory only if persistence cannot be set up.
+    if let store = JSONWorldStatePersistenceStore.applicationSupport() {
+      self.worldState = WorldStateStub(persistenceStore: store)
+    } else {
+      self.worldState = WorldStateStub()
+    }
+    super.init()
+  }
+
   // MARK: - Runtime services
 
   private let permissions = PermissionsService()
   private let displayAdapter = DisplayAdapter()
   private let diagnostics = DiagnosticsServiceStub()
-  private let worldState = WorldStateStub()
+  private let worldState: WorldStateStub
   private let planner = TilingProjectionPlanner()
 
   // MARK: - Runtime pipeline (lazy to allow ordered initialization)
