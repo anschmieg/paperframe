@@ -787,3 +787,260 @@ func commandRouterCreateWorkspaceOnSpecificDisplayTargetsOnlyThatDisplay() async
     // create must not trigger reconciliation.
     #expect(spy.reasons.isEmpty)
 }
+
+// MARK: - Keyboard shortcut action tests (Milestone 18)
+
+/// Tests that simulate keyboard shortcut behavior for workspace actions.
+/// The keyboard shortcuts target the "current" (active) workspace on the primary display.
+
+@Test("Keyboard shortcut: create workspace on primary display uses correct displayID")
+@MainActor
+func keyboardShortcutCreateWorkspaceOnPrimaryDisplay() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)  // Primary display (first)
+    let d2 = DisplayID(2)  // Secondary display
+
+    // Pre-seed workspace on d1 to establish it as active.
+    let ws1 = WorkspaceState(displayID: d1, viewport: ViewportState(displayID: d1))
+    worldState.updateWorkspaceState(ws1)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Simulate keyboard shortcut: create workspace on primary display (d1).
+    await router.handle(command: .createWorkspace(displayID: d1, label: "Keyboard Created"))
+
+    // Verify workspace created on d1.
+    let d1Workspaces = worldState.allWorkspaces(for: d1)
+    #expect(d1Workspaces.count == 2)
+    #expect(d1Workspaces.contains { $0.label == "Keyboard Created" })
+
+    // d2 must remain unaffected.
+    #expect(worldState.allWorkspaces(for: d2).isEmpty)
+
+    // create must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("Keyboard shortcut: rename current workspace targets active workspace")
+@MainActor
+func keyboardShortcutRenameCurrentWorkspace() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)  // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Simulate keyboard shortcut: rename the current (active) workspace (ws2).
+    await router.handle(command: .renameWorkspace(workspaceID: ws2.workspaceID, newLabel: "Current WS"))
+
+    // Active workspace (ws2) must be renamed.
+    #expect(worldState.activeWorkspace(for: displayID)?.label == "Current WS")
+
+    // ws1 must remain unchanged.
+    let ws1State = worldState.allWorkspaces(for: displayID).first { $0.workspaceID == ws1.workspaceID }
+    #expect(ws1State?.label == nil)
+
+    // rename must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("Keyboard shortcut: remove current workspace targets active workspace")
+@MainActor
+func keyboardShortcutRemoveCurrentWorkspace() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)  // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Simulate keyboard shortcut: remove the current (active) workspace (ws2).
+    await router.handle(command: .removeWorkspace(workspaceID: ws2.workspaceID))
+
+    // ws2 (active) was removed, ws1 should be promoted to active.
+    let active = worldState.activeWorkspace(for: displayID)
+    #expect(active?.workspaceID == ws1.workspaceID)
+
+    // Only ws1 should remain.
+    let all = worldState.allWorkspaces(for: displayID)
+    #expect(all.count == 1)
+    #expect(all.first?.workspaceID == ws1.workspaceID)
+
+    // remove must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("Keyboard shortcut: remove current workspace rejects when only one remains")
+@MainActor
+func keyboardShortcutRemoveCurrentWorkspaceRejectedWhenOnlyOne() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+
+    let ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws)  // Only workspace
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Attempt to remove the only workspace via keyboard shortcut simulation.
+    await router.handle(command: .removeWorkspace(workspaceID: ws.workspaceID))
+
+    // Must be rejected; workspace count remains 1.
+    #expect(worldState.allWorkspaces(for: displayID).count == 1)
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws.workspaceID)
+
+    // remove must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("Keyboard shortcut: rename current workspace with whitespace-only normalizes to nil")
+@MainActor
+func keyboardShortcutRenameWhitespaceNormalizesToNil() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+
+    var ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    ws.label = "Original"
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Simulate keyboard shortcut rename with whitespace-only.
+    await router.handle(command: .renameWorkspace(workspaceID: ws.workspaceID, newLabel: "   "))
+
+    // Label must be cleared (normalized to nil).
+    #expect(worldState.activeWorkspace(for: displayID)?.label == nil)
+
+    // rename must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+// MARK: - Keyboard shortcut support tests (Milestone 18)
+
+@Test("CommandRouter.handle createWorkspace on primary display (first in sorted topology)")
+@MainActor
+func commandRouterCreateWorkspaceOnPrimaryDisplay() async {
+    let worldState = WorldStateStub()
+    let d1 = DisplayID(1)
+    let d2 = DisplayID(2)
+
+    // Pre-seed workspace on d2 so d2 is not first.
+    let wsOnD2 = WorkspaceState(displayID: d2, viewport: ViewportState(displayID: d2))
+    worldState.updateWorkspaceState(wsOnD2)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Create on primary display (d1, as first sorted).
+    await router.handle(command: .createWorkspace(displayID: d1, label: "Primary WS"))
+
+    let d1Workspaces = worldState.allWorkspaces(for: d1)
+    #expect(d1Workspaces.count == 1)
+    #expect(d1Workspaces.first?.label == "Primary WS")
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle renameWorkspace on active workspace (current) preserves switching")
+@MainActor
+func commandRouterRenameActiveWorkspaceFromShortcut() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)  // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Rename the active (current) workspace via keyboard shortcut.
+    await router.handle(command: .renameWorkspace(workspaceID: ws2.workspaceID, newLabel: "Active Renamed"))
+
+    // Active workspace must have the new label.
+    #expect(worldState.activeWorkspace(for: displayID)?.label == "Active Renamed")
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws2.workspaceID)
+    // Rename must not trigger reconciliation.
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle removeWorkspace on active workspace promotes replacement")
+@MainActor
+func commandRouterRemoveActiveWorkspaceFromShortcut() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws1 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    let ws2 = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws1)
+    worldState.updateWorkspaceState(ws2)  // ws2 is active
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Remove the active (current) workspace via keyboard shortcut.
+    await router.handle(command: .removeWorkspace(workspaceID: ws2.workspaceID))
+
+    // ws1 should now be active.
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws1.workspaceID)
+    // Only ws1 should remain.
+    #expect(worldState.allWorkspaces(for: displayID).count == 1)
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle removeWorkspace on active workspace when single rejects safely")
+@MainActor
+func commandRouterRemoveActiveWhenSingleRejects() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    let ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    worldState.updateWorkspaceState(ws)  // Only workspace
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Try to remove the only (active) workspace via keyboard shortcut.
+    await router.handle(command: .removeWorkspace(workspaceID: ws.workspaceID))
+
+    // Must be rejected; workspace count remains 1.
+    #expect(worldState.allWorkspaces(for: displayID).count == 1)
+    #expect(worldState.activeWorkspace(for: displayID)?.workspaceID == ws.workspaceID)
+    #expect(spy.reasons.isEmpty)
+}
+
+@Test("CommandRouter.handle renameWorkspace empty input normalizes to nil")
+@MainActor
+func commandRouterRenameEmptyNormalizesToNil() async {
+    let worldState = WorldStateStub()
+    let displayID = DisplayID(1)
+    let did = displayID
+    var ws = WorkspaceState(displayID: did, viewport: ViewportState(displayID: did))
+    ws.label = "Old"
+    worldState.updateWorkspaceState(ws)
+
+    let spy = CRReconciliationSpy()
+    let router = makeRouter(worldState: worldState, spy: spy)
+
+    // Rename with empty string (simulates empty text field from keyboard shortcut flow).
+    await router.handle(command: .renameWorkspace(workspaceID: ws.workspaceID, newLabel: ""))
+
+    // Empty label normalizes to nil.
+    #expect(worldState.activeWorkspace(for: displayID)?.label == nil)
+    #expect(spy.reasons.isEmpty)
+}

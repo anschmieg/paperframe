@@ -106,6 +106,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     workspaceSubmenu.delegate = self
     menu.addItem(workspaceMenuItem)
 
+    // Current workspace actions with keyboard shortcuts (Milestone 18).
+    menu.addItem(withTitle: "New Workspace…", action: #selector(newWorkspace(_:)), keyEquivalent: "n")
+    menu.addItem(
+      withTitle: "Rename Current Workspace…", action: #selector(renameCurrentWorkspace(_:)), keyEquivalent: "R")
+    menu.addItem(
+      withTitle: "Remove Current Workspace",
+      action: #selector(removeCurrentWorkspace(_:)),
+      keyEquivalent: "\u{08}")  // Backspace key
+
     // TODO: Add layout commands (move, resize, cycle, etc.)
     menu.addItem(withTitle: "Diagnostics…", action: #selector(showDiagnostics), keyEquivalent: "d")
     menu.addItem(.separator())
@@ -245,6 +254,127 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
     let label: String? = trimmed.isEmpty ? nil : trimmed
     commandRouter.route(command: .createWorkspace(displayID: payload.displayID, label: label))
+  }
+
+  // MARK: - Keyboard shortcut actions (Milestone 18)
+
+  /// Creates a new workspace on the main display via keyboard shortcut.
+  ///
+  /// Targets the main display (first display in topology) for workspace creation.
+  /// Reuses the same dialog flow as the per-display menu action.
+  @objc private func newWorkspace(_ sender: NSMenuItem) {
+    let topology = displayAdapter.currentTopology()
+    guard let mainDisplay = topology.displays.first else {
+      // No displays available — cannot create workspace.
+      return
+    }
+
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+    textField.placeholderString = "Workspace name (optional)"
+
+    let alert = NSAlert()
+    alert.messageText = "New Workspace"
+    alert.informativeText = "Enter an optional name for the new workspace."
+    alert.accessoryView = textField
+    alert.addButton(withTitle: "Create")
+    alert.addButton(withTitle: "Cancel")
+
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+    let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
+    let label: String? = trimmed.isEmpty ? nil : trimmed
+    commandRouter.route(command: .createWorkspace(displayID: mainDisplay.displayID, label: label))
+  }
+
+  /// Renames the current (active) workspace via keyboard shortcut.
+  ///
+  /// Targets the active workspace on the main display. Reuses the same dialog flow
+  /// as the per-workspace menu action.
+  @objc private func renameCurrentWorkspace(_ sender: NSMenuItem) {
+    let topology = displayAdapter.currentTopology()
+    guard let mainDisplay = topology.displays.first else {
+      // No displays available — cannot rename.
+      return
+    }
+
+    guard let current = worldState.activeWorkspace(for: mainDisplay.displayID) else {
+      // No active workspace — show informative alert.
+      let alert = NSAlert()
+      alert.messageText = "No Active Workspace"
+      alert.informativeText = "There is no active workspace to rename."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    // Look up the current label at action time so the dialog reflects any recent changes.
+    let currentLabel = findWorkspace(byID: current.workspaceID)?.label
+
+    let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+    textField.stringValue = currentLabel ?? ""
+    textField.placeholderString = "Workspace name"
+
+    let alert = NSAlert()
+    alert.messageText = "Rename Current Workspace"
+    alert.informativeText = "Enter a new name for the current workspace."
+    alert.accessoryView = textField
+    alert.addButton(withTitle: "Rename")
+    alert.addButton(withTitle: "Cancel")
+
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+    let trimmed = textField.stringValue.trimmingCharacters(in: .whitespaces)
+    let newLabel: String? = trimmed.isEmpty ? nil : trimmed
+    commandRouter.route(
+      command: .renameWorkspace(workspaceID: current.workspaceID, newLabel: newLabel))
+  }
+
+  /// Removes the current (active) workspace via keyboard shortcut.
+  ///
+  /// Targets the active workspace on the main display. Reuses the same confirmation flow
+  /// as the per-workspace menu action.
+  @objc private func removeCurrentWorkspace(_ sender: NSMenuItem) {
+    let topology = displayAdapter.currentTopology()
+    guard let mainDisplay = topology.displays.first else {
+      // No displays available — cannot remove.
+      return
+    }
+
+    guard let current = worldState.activeWorkspace(for: mainDisplay.displayID) else {
+      // No active workspace — show informative alert.
+      let alert = NSAlert()
+      alert.messageText = "No Active Workspace"
+      alert.informativeText = "There is no active workspace to remove."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    // Re-check at action time: workspace may have disappeared or count may have changed.
+    let workspaces = worldState.allWorkspaces(for: mainDisplay.displayID)
+    guard workspaces.contains(where: { $0.workspaceID == current.workspaceID }) else {
+      // Workspace disappeared between menu construction and action — safe no-op.
+      return
+    }
+
+    if workspaces.count <= 1 {
+      let alert = NSAlert()
+      alert.messageText = "Cannot Remove Workspace"
+      alert.informativeText = "The last remaining workspace on a display cannot be removed."
+      alert.addButton(withTitle: "OK")
+      _ = alert.runModal()
+      return
+    }
+
+    let currentLabel = findWorkspace(byID: current.workspaceID)?.label ?? "this workspace"
+    let confirm = NSAlert()
+    confirm.messageText = "Remove \"\(currentLabel)\"?"
+    confirm.informativeText = "This workspace will be removed. This action cannot be undone."
+    confirm.addButton(withTitle: "Remove")
+    confirm.addButton(withTitle: "Cancel")
+    guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+    commandRouter.route(command: .removeWorkspace(workspaceID: current.workspaceID))
   }
 
   // MARK: - Private helpers
